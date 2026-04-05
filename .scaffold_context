@@ -1,0 +1,1852 @@
+# Scaffold Context — Generated File Contents
+
+These files are pre-generated. Do NOT Read them — their contents are below.
+EXCEPTION: DashboardOverview.tsx is NOT included here. You MUST Read it with the Read tool before Write.
+Your job: Analyze data (1-2 sentences), Read then Write DashboardOverview.tsx (once), build.
+index.css is pre-generated with the shared design system. Do NOT edit it.
+src/config/ai-features.ts is editable — set AI_PHOTO_SCAN['Entity'] = true to enable photo scan in dialogs.
+NEVER use Bash cat/echo/heredoc for file operations — always use Read/Write/Edit tools.
+
+Generated 36 scaffold files:
+  - src/App.tsx
+  - src/components/ErrorBoundary.tsx
+  - src/components/Layout.tsx
+  - src/components/PageShell.tsx
+  - src/components/TopBar.tsx
+  - src/components/ActionsBar.tsx
+  - src/pages/DashboardOverview.tsx
+  - src/components/ConfirmDialog.tsx
+  - src/components/ActionInputDialog.tsx
+  - src/components/StatCard.tsx
+  - src/components/IntentWizardShell.tsx
+  - src/components/EntitySelectStep.tsx
+  - src/components/BudgetTracker.tsx
+  - src/components/StatusBadge.tsx
+  - src/components/WorkflowPlaceholders.tsx
+  - src/index.css
+  - src/lib/ai.ts
+  - src/lib/chat-context.ts
+  - src/lib/actions-agent.ts
+  - src/context/ActionsContext.tsx
+  - src/components/ChatWidget.tsx
+  - src/components/VersionCheck.tsx
+  - src/config/ai-features.ts
+  - src/lib/formatters.ts
+  - src/hooks/useDashboardData.ts
+  - src/types/enriched.ts
+  - src/lib/enrich.ts
+  - src/components/GeoMapPicker.tsx
+  - src/pages/KategorienPage.tsx
+  - src/components/dialogs/KategorienDialog.tsx
+  - src/components/dialogs/KategorienViewDialog.tsx
+  - src/pages/OrtePage.tsx
+  - src/components/dialogs/OrteDialog.tsx
+  - src/components/dialogs/OrteViewDialog.tsx
+  - src/pages/AdminPage.tsx
+  - src/components/dialogs/BulkEditDialog.tsx
+
+## src/types/app.ts
+```
+// AUTOMATICALLY GENERATED TYPES - DO NOT EDIT
+
+export type LookupValue = { key: string; label: string };
+export type GeoLocation = { lat: number; long: number; info?: string };
+
+export interface Kategorien {
+  record_id: string;
+  createdat: string;
+  updatedat: string | null;
+  fields: {
+    kategorie_name?: string;
+    kategorie_beschreibung?: string;
+  };
+}
+
+export interface Orte {
+  record_id: string;
+  createdat: string;
+  updatedat: string | null;
+  fields: {
+    ort_name?: string;
+    kategorie?: string; // applookup -> URL zu 'Kategorien' Record
+    strasse?: string;
+    hausnummer?: string;
+    postleitzahl?: string;
+    stadt?: string;
+    land?: string;
+    standort?: GeoLocation; // { lat, long, info }
+    website?: string;
+    telefon?: string;
+    oeffnungszeiten?: string;
+    beschreibung?: string;
+    fotos?: string;
+    bewertung?: LookupValue;
+    bereits_besucht?: boolean;
+    besuchsdatum?: string; // Format: YYYY-MM-DD oder ISO String
+    notizen_nach_besuch?: string;
+  };
+}
+
+export const APP_IDS = {
+  KATEGORIEN: '69d19fcaf3bbc58ce0bfda94',
+  ORTE: '69d19fcd22b3c4519dd04ce3',
+} as const;
+
+
+export const LOOKUP_OPTIONS: Record<string, Record<string, {key: string, label: string}[]>> = {
+  'orte': {
+    bewertung: [{ key: "rating_1", label: "⭐ 1 – Weniger beeindruckend" }, { key: "rating_2", label: "⭐⭐ 2 – Ganz okay" }, { key: "rating_3", label: "⭐⭐⭐ 3 – Gut" }, { key: "rating_4", label: "⭐⭐⭐⭐ 4 – Sehr gut" }, { key: "rating_5", label: "⭐⭐⭐⭐⭐ 5 – Absolut empfehlenswert" }],
+  },
+};
+
+export const FIELD_TYPES: Record<string, Record<string, string>> = {
+  'kategorien': {
+    'kategorie_name': 'string/text',
+    'kategorie_beschreibung': 'string/textarea',
+  },
+  'orte': {
+    'ort_name': 'string/text',
+    'kategorie': 'applookup/select',
+    'strasse': 'string/text',
+    'hausnummer': 'string/text',
+    'postleitzahl': 'string/text',
+    'stadt': 'string/text',
+    'land': 'string/text',
+    'standort': 'geo',
+    'website': 'string/url',
+    'telefon': 'string/tel',
+    'oeffnungszeiten': 'string/text',
+    'beschreibung': 'string/textarea',
+    'fotos': 'file',
+    'bewertung': 'lookup/radio',
+    'bereits_besucht': 'bool',
+    'besuchsdatum': 'date/date',
+    'notizen_nach_besuch': 'string/textarea',
+  },
+};
+
+type StripLookup<T> = {
+  [K in keyof T]: T[K] extends LookupValue | undefined ? string | LookupValue | undefined
+    : T[K] extends LookupValue[] | undefined ? string[] | LookupValue[] | undefined
+    : T[K];
+};
+
+// Helper Types for creating new records (lookup fields as plain strings for API)
+export type CreateKategorien = StripLookup<Kategorien['fields']>;
+export type CreateOrte = StripLookup<Orte['fields']>;
+```
+
+## src/services/livingAppsService.ts
+```
+// AUTOMATICALLY GENERATED SERVICE
+import { APP_IDS, LOOKUP_OPTIONS, FIELD_TYPES } from '@/types/app';
+import type { Kategorien, Orte, CreateKategorien, CreateOrte } from '@/types/app';
+
+// Base Configuration
+const API_BASE_URL = 'https://my.living-apps.de/rest';
+
+// --- HELPER FUNCTIONS ---
+export function extractRecordId(url: unknown): string | null {
+  if (!url) return null;
+  if (typeof url !== 'string') return null;
+  const match = url.match(/([a-f0-9]{24})$/i);
+  return match ? match[1] : null;
+}
+
+export function createRecordUrl(appId: string, recordId: string): string {
+  return `https://my.living-apps.de/rest/apps/${appId}/records/${recordId}`;
+}
+
+async function callApi(method: string, endpoint: string, data?: any) {
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',  // Nutze Session Cookies für Auth
+    body: data ? JSON.stringify(data) : undefined
+  });
+  if (!response.ok) {
+    if (response.status === 401 || response.status === 403) window.dispatchEvent(new Event('auth-error'));
+    throw new Error(await response.text());
+  }
+  // DELETE returns often empty body or simple status
+  if (method === 'DELETE') return true;
+  return response.json();
+}
+
+/** Upload a file to LivingApps. Returns the file URL for use in record fields. */
+export async function uploadFile(file: File | Blob, filename?: string): Promise<string> {
+  const formData = new FormData();
+  formData.append('file', file, filename ?? (file instanceof File ? file.name : 'upload'));
+  const res = await fetch(`${API_BASE_URL}/files`, {
+    method: 'POST',
+    credentials: 'include',
+    body: formData,
+  });
+  if (!res.ok) {
+    if (res.status === 401 || res.status === 403) window.dispatchEvent(new Event('auth-error'));
+    throw new Error(`File upload failed: ${res.status}`);
+  }
+  const data = await res.json();
+  return data.url;
+}
+
+function enrichLookupFields<T extends { fields: Record<string, unknown> }>(
+  records: T[], entityKey: string
+): T[] {
+  const opts = LOOKUP_OPTIONS[entityKey];
+  if (!opts) return records;
+  return records.map(r => {
+    const fields = { ...r.fields };
+    for (const [fieldKey, options] of Object.entries(opts)) {
+      const val = fields[fieldKey];
+      if (typeof val === 'string') {
+        const m = options.find(o => o.key === val);
+        fields[fieldKey] = m ?? { key: val, label: val };
+      } else if (Array.isArray(val)) {
+        fields[fieldKey] = val.map(v => {
+          if (typeof v === 'string') {
+            const m = options.find(o => o.key === v);
+            return m ?? { key: v, label: v };
+          }
+          return v;
+        });
+      }
+    }
+    return { ...r, fields } as T;
+  });
+}
+
+/** Normalize fields for API writes: strip lookup objects to keys, fix date formats. */
+export function cleanFieldsForApi(
+  fields: Record<string, unknown>,
+  entityKey: string
+): Record<string, unknown> {
+  const clean: Record<string, unknown> = { ...fields };
+  for (const [k, v] of Object.entries(clean)) {
+    if (v && typeof v === 'object' && !Array.isArray(v) && 'key' in v) clean[k] = (v as any).key;
+    if (Array.isArray(v)) clean[k] = v.map((item: any) => item && typeof item === 'object' && 'key' in item ? item.key : item);
+  }
+  const types = FIELD_TYPES[entityKey];
+  if (types) {
+    for (const [k, ft] of Object.entries(types)) {
+      if (!(k in clean)) continue;
+      const val = clean[k];
+      // applookup fields: undefined → null (clear single reference)
+      if ((ft === 'applookup/select' || ft === 'applookup/choice') && val === undefined) { clean[k] = null; continue; }
+      // multipleapplookup fields: undefined/null → [] (clear multi reference)
+      if ((ft === 'multipleapplookup/select' || ft === 'multipleapplookup/choice') && (val === undefined || val === null)) { clean[k] = []; continue; }
+      // lookup fields: undefined → null (clear single lookup)
+      if ((ft.startsWith('lookup/')) && val === undefined) { clean[k] = null; continue; }
+      // multiplelookup fields: undefined/null → [] (clear multi lookup)
+      if ((ft.startsWith('multiplelookup/')) && (val === undefined || val === null)) { clean[k] = []; continue; }
+      if (typeof val !== 'string' || !val) continue;
+      if (ft === 'date/datetimeminute') clean[k] = val.slice(0, 16);
+      else if (ft === 'date/date') clean[k] = val.slice(0, 10);
+    }
+  }
+  return clean;
+}
+
+let _cachedUserProfile: Record<string, unknown> | null = null;
+
+export async function getUserProfile(): Promise<Record<string, unknown>> {
+  if (_cachedUserProfile) return _cachedUserProfile;
+  const raw = await callApi('GET', '/user');
+  const skip = new Set(['id', 'image', 'lang', 'gender', 'title', 'fax', 'menus', 'initials']);
+  const data: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(raw)) {
+    if (v != null && !skip.has(k)) data[k] = v;
+  }
+  _cachedUserProfile = data;
+  return data;
+}
+
+export interface HeaderProfile {
+  firstname: string;
+  surname: string;
+  email: string;
+  image: string | null;
+  company: string | null;
+}
+
+let _cachedHeaderProfile: HeaderProfile | null = null;
+
+export async function getHeaderProfile(): Promise<HeaderProfile> {
+  if (_cachedHeaderProfile) return _cachedHeaderProfile;
+  const raw = await callApi('GET', '/user');
+  _cachedHeaderProfile = {
+    firstname: raw.firstname ?? '',
+    surname: raw.surname ?? '',
+    email: raw.email ?? '',
+    image: raw.image ?? null,
+    company: raw.company ?? null,
+  };
+  return _cachedHeaderProfile;
+}
+
+export interface AppGroupInfo {
+  id: string;
+  name: string;
+  image: string | null;
+  createdat: string;
+  /** Resolved link: /objects/{id}/ if the dashboard exists, otherwise /gateway/apps/{firstAppId}?template=list_page */
+  href: string;
+}
+
+let _cachedAppGroups: AppGroupInfo[] | null = null;
+
+export async function getAppGroups(): Promise<AppGroupInfo[]> {
+  if (_cachedAppGroups) return _cachedAppGroups;
+  const raw = await callApi('GET', '/appgroups?with=apps');
+  const groups: AppGroupInfo[] = Object.values(raw)
+    .map((g: any) => {
+      const firstAppId = Object.keys(g.apps ?? {})[0] ?? g.id;
+      return {
+        id: g.id,
+        name: g.name,
+        image: g.image ?? null,
+        createdat: g.createdat ?? '',
+        href: `/gateway/apps/${firstAppId}?template=list_page`,
+        _firstAppId: firstAppId,
+      };
+    })
+    .sort((a, b) => b.createdat.localeCompare(a.createdat));
+
+  // Check which appgroups have a deployed dashboard via app params
+  const paramChecks = await Promise.allSettled(
+    groups.map(g => callApi('GET', `/apps/${(g as any)._firstAppId}/params/la_page_header_additional_url`))
+  );
+  paramChecks.forEach((result, i) => {
+    if (result.status !== 'fulfilled' || !result.value) return;
+    const url = result.value.value;
+    if (typeof url === 'string' && url.length > 0) {
+      try { groups[i].href = new URL(url).pathname; } catch { groups[i].href = url; }
+    }
+  });
+
+  // Clean up internal helper property
+  groups.forEach(g => delete (g as any)._firstAppId);
+
+  _cachedAppGroups = groups;
+  return _cachedAppGroups;
+}
+
+export class LivingAppsService {
+  // --- KATEGORIEN ---
+  static async getKategorien(): Promise<Kategorien[]> {
+    const data = await callApi('GET', `/apps/${APP_IDS.KATEGORIEN}/records`);
+    const records = Object.entries(data).map(([id, rec]: [string, any]) => ({
+      record_id: id, ...rec
+    })) as Kategorien[];
+    return enrichLookupFields(records, 'kategorien');
+  }
+  static async getKategorienEntry(id: string): Promise<Kategorien | undefined> {
+    const data = await callApi('GET', `/apps/${APP_IDS.KATEGORIEN}/records/${id}`);
+    const record = { record_id: data.id, ...data } as Kategorien;
+    return enrichLookupFields([record], 'kategorien')[0];
+  }
+  static async createKategorienEntry(fields: CreateKategorien) {
+    return callApi('POST', `/apps/${APP_IDS.KATEGORIEN}/records`, { fields: cleanFieldsForApi(fields as any, 'kategorien') });
+  }
+  static async updateKategorienEntry(id: string, fields: Partial<CreateKategorien>) {
+    return callApi('PATCH', `/apps/${APP_IDS.KATEGORIEN}/records/${id}`, { fields: cleanFieldsForApi(fields as any, 'kategorien') });
+  }
+  static async deleteKategorienEntry(id: string) {
+    return callApi('DELETE', `/apps/${APP_IDS.KATEGORIEN}/records/${id}`);
+  }
+
+  // --- ORTE ---
+  static async getOrte(): Promise<Orte[]> {
+    const data = await callApi('GET', `/apps/${APP_IDS.ORTE}/records`);
+    const records = Object.entries(data).map(([id, rec]: [string, any]) => ({
+      record_id: id, ...rec
+    })) as Orte[];
+    return enrichLookupFields(records, 'orte');
+  }
+  static async getOrteEntry(id: string): Promise<Orte | undefined> {
+    const data = await callApi('GET', `/apps/${APP_IDS.ORTE}/records/${id}`);
+    const record = { record_id: data.id, ...data } as Orte;
+    return enrichLookupFields([record], 'orte')[0];
+  }
+  static async createOrteEntry(fields: CreateOrte) {
+    return callApi('POST', `/apps/${APP_IDS.ORTE}/records`, { fields: cleanFieldsForApi(fields as any, 'orte') });
+  }
+  static async updateOrteEntry(id: string, fields: Partial<CreateOrte>) {
+    return callApi('PATCH', `/apps/${APP_IDS.ORTE}/records/${id}`, { fields: cleanFieldsForApi(fields as any, 'orte') });
+  }
+  static async deleteOrteEntry(id: string) {
+    return callApi('DELETE', `/apps/${APP_IDS.ORTE}/records/${id}`);
+  }
+
+}
+```
+
+## src/App.tsx
+```
+import { HashRouter, Routes, Route } from 'react-router-dom';
+import { ActionsProvider } from '@/context/ActionsContext';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { Layout } from '@/components/Layout';
+import DashboardOverview from '@/pages/DashboardOverview';
+import AdminPage from '@/pages/AdminPage';
+import KategorienPage from '@/pages/KategorienPage';
+import OrtePage from '@/pages/OrtePage';
+
+export default function App() {
+  return (
+    <ErrorBoundary>
+      <HashRouter>
+        <ActionsProvider>
+          <Routes>
+            <Route element={<Layout />}>
+              <Route index element={<DashboardOverview />} />
+              <Route path="kategorien" element={<KategorienPage />} />
+              <Route path="orte" element={<OrtePage />} />
+              <Route path="admin" element={<AdminPage />} />
+            </Route>
+          </Routes>
+        </ActionsProvider>
+      </HashRouter>
+    </ErrorBoundary>
+  );
+}
+
+```
+
+## src/components/Layout.tsx
+```
+import { NavLink, Outlet } from 'react-router-dom';
+import { IconAlertCircle, IconArrowBackUp, IconLayoutDashboard, IconMapPin, IconMenu2, IconTag } from '@tabler/icons-react';
+import { useState, useEffect } from 'react';
+import ChatWidget from '@/components/ChatWidget';
+import { ActionInputDialog } from '@/components/ActionInputDialog';
+import { TopBar } from '@/components/TopBar';
+import ActionsBar from '@/components/ActionsBar';
+import { useActions } from '@/context/ActionsContext';
+import { Button } from '@/components/ui/button';
+import { VersionCheck } from '@/components/VersionCheck';
+
+const APP_TITLE = 'Meine Lieblingsorte';
+
+const IS_EMBED = new URLSearchParams(window.location.search).has('embed') || window.navigator.userAgent.startsWith('LivingAppsMobile');
+
+const navigation = [
+  { name: 'Übersicht', href: '/', icon: IconLayoutDashboard },
+  { name: 'Kategorien', href: '/kategorien', icon: IconTag },
+  { name: 'Orte', href: '/orte', icon: IconMapPin },
+];
+
+const externalNavigation = [
+  { name: 'Kategorien', href: '/gateway/apps/69d19fcaf3bbc58ce0bfda94?template=list_page', icon: IconTag },
+  { name: 'Orte', href: '/gateway/apps/69d19fcd22b3c4519dd04ce3?template=list_page', icon: IconMapPin },
+];
+
+export function Layout() {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { inputFormAction, inputFormOptions, submitActionInputs, cancelInputForm } = useActions();
+  const [authError, setAuthError] = useState(false);
+  useEffect(() => { document.title = APP_TITLE; }, []);
+  useEffect(() => {
+    const handler = () => setAuthError(true);
+    window.addEventListener('auth-error', handler);
+    return () => window.removeEventListener('auth-error', handler);
+  }, []);
+
+  return (
+    <div className="min-h-screen bg-background">
+      {!IS_EMBED && (
+      <header className="fixed top-0 left-0 right-0 z-50 bg-white shadow-sm" style={{ height: 'var(--topbar-h)' }}>
+        <div className="flex items-center justify-between h-full px-4 lg:px-8">
+          <div className="flex items-center gap-3 min-w-0">
+            <button
+              className="lg:hidden p-2 rounded-lg hover:bg-accent transition-colors"
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+            >
+              <IconMenu2 size={18} />
+            </button>
+            <svg className="hidden lg:block w-9 h-9 shrink-0" viewBox="0 0 57 57" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M18.6162 33.9164L20.4429 36.4084C20.4429 36.4084 13.4064 39.5929 9.85984 41.6434C7.73514 42.8719 6.93751 43.762 7.68335 44.356C8.00045 44.6086 18.7719 52.7814 19.1375 53.0247C23.2398 55.7549 15.79 45.2036 15.79 45.2036C15.79 45.2036 26.3397 41.899 28.5944 39.281C30.8491 36.6629 28.9112 33.9164 28.9112 33.9164C28.9112 33.9164 33.0253 35.5016 33.1876 39.281C33.289 41.6444 30.466 46.5779 28.9632 50.3787C28.063 52.6557 27.6349 53.4537 28.5898 53.4582C28.9958 53.4601 43.3581 53.5103 43.7947 53.4582C46.5726 53.1267 36.1923 50.3787 36.1923 50.3787C36.1923 50.3787 40.934 43.8566 42.0571 39.7543C42.7914 37.072 40.4732 33.4431 40.4732 33.4431C40.4732 33.4431 50.6098 36.1253 51.4017 35.4942C52.1937 34.8631 49.026 26.6585 49.026 26.6585C49.026 26.6585 57 22.8756 57 21.4556C57 20.0356 49.171 16.4028 49.171 16.4028C49.171 16.4028 49.8179 9.14493 48.3924 8.35603C46.967 7.56713 36.672 11.996 36.672 11.996C36.672 11.996 31.7464 3.51825 28.8955 3.51825C26.0446 3.51825 20.5168 11.996 20.5168 11.996C20.5168 11.996 11.3306 7.25157 10.0635 7.88269C8.79641 8.51381 8.47964 16.4028 8.47964 16.4028C8.47964 16.4028 0 20.1818 0 21.6019C0 23.0219 8.9548 26.6585 8.9548 26.6585C8.9548 26.6585 6.10388 35.0209 7.21257 35.4942C8.32126 35.9676 18.6162 33.9164 18.6162 33.9164Z" fill="#FF5C00"/>
+              <path d="M39.2754 22.6432C39.2754 24.6087 35.038 28.5398 28.6918 28.5398C22.3457 28.5398 18.1083 24.7599 18.1083 22.6432C18.1083 20.5265 22.3457 16.2931 28.6918 16.2931C35.038 16.2931 39.2754 20.6777 39.2754 22.6432Z" fill="white"/>
+              <path d="M31.4755 16.5827C32.7516 16.8524 33.9029 17.2929 34.9052 17.8249C36.2586 18.8904 37.1287 20.5421 37.1288 22.3981C37.1288 24.6151 35.8885 26.5416 34.0643 27.5241C33.4073 27.7869 32.6982 28.0121 31.9413 28.1823C31.7334 28.2048 31.5223 28.2174 31.3085 28.2174C28.0946 28.2172 25.4891 25.612 25.4891 22.3981C25.4892 21.683 25.6183 20.9978 25.8544 20.3649C26.2591 20.989 26.9614 21.4029 27.7606 21.403C29.0148 21.4028 30.0311 20.3857 30.0311 19.1315C30.0311 18.2656 29.5467 17.5126 28.8339 17.1295C29.5848 16.7762 30.4236 16.5788 31.3085 16.5788C31.3643 16.5788 31.42 16.5811 31.4755 16.5827Z" fill="black"/>
+            </svg>
+            <span className="font-semibold text-sm truncate">{APP_TITLE}</span>
+          </div>
+          <TopBar />
+        </div>
+      </header>
+      )}
+
+      {!IS_EMBED && sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-30 lg:hidden"
+          style={{ top: 'var(--topbar-h)' }}
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {!IS_EMBED && (
+      <aside
+        className={`
+          fixed left-0 z-40 w-72 bg-sidebar border-r border-sidebar-border overflow-hidden
+          transform transition-transform duration-200 ease-in-out
+          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+          lg:translate-x-0
+        `}
+        style={{ top: 'var(--topbar-h)', height: 'calc(100vh - var(--topbar-h))' }}
+      >
+        <div className="flex flex-col h-full">
+        <nav className="px-3 pt-4 space-y-0.5">
+          <a
+            href="/gateway/apps/69d19fcaf3bbc58ce0bfda94?template=list_page"
+            className="flex items-center gap-2 px-4 py-2 rounded-2xl text-base transition-colors min-w-0 text-sidebar-foreground font-normal hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
+          >
+            <IconArrowBackUp size={16} className="shrink-0" />
+            <span className="truncate">Zurück</span>
+          </a>
+          <p className="px-4 pb-2 pt-2 text-xs font-medium text-muted-foreground">
+            Navigation
+          </p>
+          {/* Overview link */}
+          {navigation.slice(0, 1).map(item => {
+            const Icon = item.icon;
+            return (
+            <NavLink
+              key={item.href}
+              to={item.href}
+              end
+              onClick={() => setSidebarOpen(false)}
+              className={({ isActive }: { isActive: boolean }) =>
+                `flex items-center gap-2 px-4 py-2 rounded-2xl text-base transition-colors min-w-0 ${
+                  isActive
+                    ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium'
+                    : 'text-sidebar-foreground font-normal hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground'
+                }`
+              }
+            >
+              <Icon size={16} className="shrink-0" />
+              <span className="truncate">{item.name}</span>
+            </NavLink>
+            );
+          })}
+          {/* Entity links (external) */}
+          {externalNavigation.map(item => {
+            const Icon = item.icon;
+            return (
+            <a
+              key={item.href}
+              href={item.href}
+              className="flex items-center gap-2 px-4 py-2 rounded-2xl text-base transition-colors min-w-0 text-sidebar-foreground font-normal hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
+            >
+              <Icon size={16} className="shrink-0" />
+              <span className="truncate">{item.name}</span>
+            </a>
+            );
+          })}
+          {/* CRUD page links (hidden via .nav-crud-item { display: none } in index.css) */}
+          {navigation.slice(1).map(item => {
+            const Icon = item.icon;
+            return (
+            <NavLink
+              key={item.href}
+              to={item.href}
+              onClick={() => setSidebarOpen(false)}
+              className={({ isActive }: { isActive: boolean }) =>
+                `nav-crud-item flex items-center gap-2 px-4 py-2 rounded-2xl text-base transition-colors min-w-0 ${
+                  isActive
+                    ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium'
+                    : 'text-sidebar-foreground font-normal hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground'
+                }`
+              }
+            >
+              <Icon size={16} className="shrink-0" />
+              <span className="truncate">{item.name}</span>
+            </NavLink>
+            );
+          })}
+        </nav>
+
+        <div className="mt-auto px-3 pb-4">
+          <div className="border-t border-sidebar-border pt-3">
+            <VersionCheck />
+          </div>
+        </div>
+        </div>
+      </aside>
+      )}
+
+      <div className={IS_EMBED ? "" : "lg:pl-72"} style={IS_EMBED ? undefined : { paddingTop: 'var(--topbar-h)' }}>
+        <main className={`max-w-screen-2xl ${IS_EMBED ? "p-2 lg:p-4" : "p-6 lg:p-8"}`}>
+          {!IS_EMBED && !authError && <ActionsBar />}
+          {authError ? (
+            <div className="flex flex-col items-center justify-center py-24 gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-destructive/10 flex items-center justify-center">
+                <IconAlertCircle size={22} className="text-destructive" />
+              </div>
+              <div className="text-center">
+                <h3 className="font-semibold text-foreground mb-1">Du bist nicht angemeldet.</h3>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => {
+                window.location.href = `${window.location.origin}/login.htm?cugCoUrl=${encodeURIComponent(window.location.href)}`;
+              }}>Anmelden</Button>
+            </div>
+          ) : (
+            <Outlet />
+          )}
+        </main>
+      </div>
+
+      {!IS_EMBED && <ChatWidget />}
+
+      {inputFormAction && inputFormAction.metadata?.input_schema && (
+        <ActionInputDialog
+          action={inputFormAction}
+          schema={inputFormAction.metadata.input_schema}
+          options={inputFormOptions}
+          onSubmit={(inputs, files) => submitActionInputs(inputFormAction, inputs, files)}
+          onCancel={cancelInputForm}
+        />
+      )}
+    </div>
+  );
+}
+
+```
+
+## src/hooks/useDashboardData.ts
+```
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import type { Kategorien, Orte } from '@/types/app';
+import { LivingAppsService } from '@/services/livingAppsService';
+
+export function useDashboardData() {
+  const [kategorien, setKategorien] = useState<Kategorien[]>([]);
+  const [orte, setOrte] = useState<Orte[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  const fetchAll = useCallback(async () => {
+    setError(null);
+    try {
+      const [kategorienData, orteData] = await Promise.all([
+        LivingAppsService.getKategorien(),
+        LivingAppsService.getOrte(),
+      ]);
+      setKategorien(kategorienData);
+      setOrte(orteData);
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error('Fehler beim Laden der Daten'));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  // Silent background refresh (no loading state change → no flicker)
+  useEffect(() => {
+    async function silentRefresh() {
+      try {
+        const [kategorienData, orteData] = await Promise.all([
+          LivingAppsService.getKategorien(),
+          LivingAppsService.getOrte(),
+        ]);
+        setKategorien(kategorienData);
+        setOrte(orteData);
+      } catch {
+        // silently ignore — stale data is better than no data
+      }
+    }
+    function handleRefresh() { void silentRefresh(); }
+    window.addEventListener('dashboard-refresh', handleRefresh);
+    return () => window.removeEventListener('dashboard-refresh', handleRefresh);
+  }, []);
+
+  const kategorienMap = useMemo(() => {
+    const m = new Map<string, Kategorien>();
+    kategorien.forEach(r => m.set(r.record_id, r));
+    return m;
+  }, [kategorien]);
+
+  return { kategorien, setKategorien, orte, setOrte, loading, error, fetchAll, kategorienMap };
+}
+```
+
+## src/types/enriched.ts
+```
+import type { Orte } from './app';
+
+export type EnrichedOrte = Orte & {
+  kategorieName: string;
+};
+
+```
+
+## src/lib/enrich.ts
+```
+import type { EnrichedOrte } from '@/types/enriched';
+import type { Kategorien, Orte } from '@/types/app';
+import { extractRecordId } from '@/services/livingAppsService';
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function resolveDisplay(url: unknown, map: Map<string, any>, ...fields: string[]): string {
+  if (!url) return '';
+  const id = extractRecordId(url);
+  if (!id) return '';
+  const r = map.get(id);
+  if (!r) return '';
+  return fields.map(f => String(r.fields[f] ?? '')).join(' ').trim();
+}
+
+interface OrteMaps {
+  kategorienMap: Map<string, Kategorien>;
+}
+
+export function enrichOrte(
+  orte: Orte[],
+  maps: OrteMaps
+): EnrichedOrte[] {
+  return orte.map(r => ({
+    ...r,
+    kategorieName: resolveDisplay(r.fields.kategorie, maps.kategorienMap, 'kategorie_name'),
+  }));
+}
+
+```
+
+## src/lib/formatters.ts
+```
+import { format, parseISO } from 'date-fns';
+import { de } from 'date-fns/locale';
+
+export function formatDate(s: string | undefined) {
+  if (!s) return '—';
+  try { return format(parseISO(s), 'dd.MM.yyyy', { locale: de }); } catch { return s; }
+}
+
+export function formatCurrency(v: number | undefined) {
+  if (v == null) return '—';
+  return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(v);
+}
+
+/** Extract display label from lookup/select or lookup/radio API response */
+export function displayLookup(val: unknown, options?: {key: string, label: string}[]): string {
+  if (val == null) return '—';
+  if (typeof val === 'object' && val !== null && 'label' in val) return String((val as Record<string, unknown>).label);
+  if (options && typeof val === 'string') { const m = options.find(o => o.key === val); if (m) return m.label; }
+  return String(val);
+}
+
+/** Extract labels from multiplelookup/checkbox API response */
+export function displayMultiLookup(val: unknown, options?: {key: string, label: string}[]): string {
+  if (val == null) return '—';
+  if (Array.isArray(val)) return val.map(v => {
+    if (typeof v === 'object' && v !== null && 'label' in v) return String((v as Record<string, unknown>).label);
+    if (options && typeof v === 'string') { const m = options.find(o => o.key === v); if (m) return m.label; }
+    return String(v);
+  }).join(', ') || '—';
+  return displayLookup(val, options);
+}
+
+/** Extract key from lookup value (handles both {key,label} objects and plain strings) */
+export function lookupKey(val: unknown): string | undefined {
+  if (val == null) return undefined;
+  if (typeof val === 'object' && val !== null && 'key' in val) return String((val as Record<string, unknown>).key);
+  if (typeof val === 'string') return val;
+  return undefined;
+}
+
+/** Extract keys from multiplelookup value */
+export function lookupKeys(val: unknown): string[] {
+  if (!Array.isArray(val)) return [];
+  return val.map(v => typeof v === 'object' && v !== null && 'key' in v ? String((v as Record<string, unknown>).key) : String(v));
+}
+```
+
+## src/lib/ai.ts
+```
+const AI_ENDPOINT = "https://my.living-apps.de/litellm/v1/chat/completions";
+const AI_MODEL = "default";
+
+export type ChatMessage = {
+  role: "system" | "user" | "assistant";
+  content: string | Array<{ type: string; [key: string]: unknown }>;
+};
+
+type CompletionOptions = {
+  temperature?: number;
+  max_tokens?: number;
+  top_p?: number;
+  stop?: string[];
+  response_format?: { type: string };
+};
+
+export async function chatCompletion(
+  messages: ChatMessage[],
+  options: CompletionOptions = {}
+): Promise<string> {
+  const res = await fetch(AI_ENDPOINT, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ model: AI_MODEL, messages, ...options }),
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`AI API ${res.status}: ${body}`);
+  }
+  const data = await res.json();
+  return data.choices[0].message.content;
+}
+
+export async function safeJsonCompletion<T = unknown>(
+  messages: ChatMessage[],
+  options: CompletionOptions = {}
+): Promise<T> {
+  const raw = await chatCompletion(messages, options);
+  const match = raw.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
+  if (!match) throw new Error(`Expected JSON but got: ${raw.slice(0, 200)}`);
+  return JSON.parse(match[0]);
+}
+
+export async function withRetry<T>(fn: () => Promise<T>, maxAttempts = 3): Promise<T> {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (attempt === maxAttempts) throw err;
+      await new Promise((r) => setTimeout(r, 1000 * attempt));
+    }
+  }
+  throw new Error("unreachable");
+}
+
+// --- File encoding helpers ---
+
+const VISION_SUPPORTED_TYPES = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
+
+function needsImageConversion(file: File): boolean {
+  if (VISION_SUPPORTED_TYPES.has(file.type)) return false;
+  if (file.type.startsWith("image/")) return true;
+  const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+  return ext === "heic" || ext === "heif";
+}
+
+function canvasConvertToJpeg(file: File): Promise<File> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) { URL.revokeObjectURL(url); reject(new Error("Canvas not supported")); return; }
+      ctx.drawImage(img, 0, 0);
+      URL.revokeObjectURL(url);
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) { reject(new Error("Image conversion failed")); return; }
+          const name = file.name.replace(/\.[^.]+$/, ".jpg");
+          resolve(new File([blob], name, { type: "image/jpeg" }));
+        },
+        "image/jpeg",
+        0.92,
+      );
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Browser cannot decode this image natively"));
+    };
+    img.src = url;
+  });
+}
+
+let heicToLoaded: Promise<void> | null = null;
+
+function loadHeicTo(): Promise<void> {
+  if (heicToLoaded) return heicToLoaded;
+  heicToLoaded = new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = "https://my.living-apps.de/npm/heic-to/dist/iife/heic-to.js";
+    s.onload = () => resolve();
+    s.onerror = () => {
+      heicToLoaded = null;
+      reject(new Error("Failed to load HEIC converter"));
+    };
+    document.head.appendChild(s);
+  });
+  return heicToLoaded;
+}
+
+async function heicFallbackConvert(file: File): Promise<File> {
+  await loadHeicTo();
+  const HT = (window as any).HeicTo;
+  if (!HT) throw new Error("HEIC converter not available");
+  const blob: Blob = await HT({
+    blob: file,
+    type: "image/jpeg",
+    quality: 0.92,
+  });
+  const name = file.name.replace(/\.[^.]+$/, ".jpg");
+  return new File([blob], name, { type: "image/jpeg" });
+}
+
+async function convertToJpeg(file: File): Promise<File> {
+  try {
+    return await canvasConvertToJpeg(file);
+  } catch {
+    return await heicFallbackConvert(file);
+  }
+}
+
+function readExifFromJpeg(buf: ArrayBuffer): DataView | null {
+  const view = new DataView(buf);
+  if (view.getUint16(0) !== 0xFFD8) return null;
+  let offset = 2;
+  while (offset < view.byteLength - 4) {
+    const marker = view.getUint16(offset);
+    if (marker === 0xFFE1) {
+      const len = view.getUint16(offset + 2);
+      const exifStart = offset + 4;
+      if (exifStart + 6 <= buf.byteLength
+          && view.getUint32(exifStart) === 0x45786966
+          && view.getUint16(exifStart + 4) === 0x0000) {
+        return new DataView(buf, exifStart + 6, len - 8);
+      }
+    }
+    if ((marker & 0xFF00) !== 0xFF00) break;
+    offset += 2 + view.getUint16(offset + 2);
+  }
+  return null;
+}
+
+function readExifFromHeic(buf: ArrayBuffer): DataView | null {
+  const view = new DataView(buf);
+  for (let s = 0; s < view.byteLength - 14; s++) {
+    if (view.getUint32(s) === 0x45786966 && view.getUint16(s + 4) === 0x0000) {
+      const t = s + 6;
+      const bo = view.getUint16(t);
+      if ((bo === 0x4949 || bo === 0x4D4D) && view.getUint16(t + 2, bo === 0x4949) === 42) {
+        return new DataView(buf, t);
+      }
+    }
+  }
+  return null;
+}
+
+function parseExifMeta(tiff: DataView): {
+  gps: { latitude: number; longitude: number } | null;
+  dateTime: string | null;
+} | null {
+  const len = tiff.byteLength;
+  if (len < 8) return null;
+  const le = tiff.getUint16(0) === 0x4949;
+  const g16 = (o: number) => o + 2 <= len ? tiff.getUint16(o, le) : 0;
+  const g32 = (o: number) => o + 4 <= len ? tiff.getUint32(o, le) : 0;
+  const rational = (o: number) => { const n = g32(o), d = g32(o + 4); return d ? n / d : 0; };
+  const ascii = (o: number, n: number) => {
+    let s = "";
+    for (let i = 0; i < n - 1 && o + i < len; i++) s += String.fromCharCode(tiff.getUint8(o + i));
+    return s;
+  };
+
+  const ifdOffset = g32(4);
+  if (!ifdOffset || ifdOffset + 2 > len) return null;
+  const count = g16(ifdOffset);
+  if (ifdOffset + 2 + count * 12 > len) return null;
+
+  let gpsOffset = 0, exifIfdOffset = 0, ifd0DateTime = "";
+  for (let i = 0; i < count; i++) {
+    const entry = ifdOffset + 2 + i * 12;
+    const tag = g16(entry);
+    if (tag === 0x8825) gpsOffset = g32(entry + 8);
+    if (tag === 0x8769) exifIfdOffset = g32(entry + 8);
+    if (tag === 0x0132) {
+      const cnt = g32(entry + 4);
+      const off = g32(entry + 8);
+      if (cnt >= 19 && off + cnt <= len) ifd0DateTime = ascii(off, cnt);
+    }
+  }
+
+  let dateTime: string | null = null;
+  if (exifIfdOffset && exifIfdOffset + 2 <= len) {
+    const exifCount = g16(exifIfdOffset);
+    if (exifIfdOffset + 2 + exifCount * 12 <= len) {
+      for (let i = 0; i < exifCount; i++) {
+        const entry = exifIfdOffset + 2 + i * 12;
+        if (g16(entry) === 0x9003) {
+          const cnt = g32(entry + 4);
+          const off = g32(entry + 8);
+          if (cnt >= 19 && off + cnt <= len) dateTime = ascii(off, cnt);
+          break;
+        }
+      }
+    }
+  }
+  if (!dateTime && ifd0DateTime) dateTime = ifd0DateTime;
+
+  let gps: { latitude: number; longitude: number } | null = null;
+  if (gpsOffset && gpsOffset + 2 <= len) {
+    const gpsCount = g16(gpsOffset);
+    if (gpsOffset + 2 + gpsCount * 12 <= len) {
+      let latRef = "", lngRef = "";
+      let latOff = 0, lngOff = 0;
+      for (let i = 0; i < gpsCount; i++) {
+        const entry = gpsOffset + 2 + i * 12;
+        const tag = g16(entry);
+        if (tag === 1) latRef = String.fromCharCode(tiff.getUint8(entry + 8));
+        if (tag === 2) latOff = g32(entry + 8);
+        if (tag === 3) lngRef = String.fromCharCode(tiff.getUint8(entry + 8));
+        if (tag === 4) lngOff = g32(entry + 8);
+      }
+      if (latOff && lngOff && latOff + 24 <= len && lngOff + 24 <= len) {
+        const toDec = (off: number) => rational(off) + rational(off + 8) / 60 + rational(off + 16) / 3600;
+        let latitude = toDec(latOff);
+        let longitude = toDec(lngOff);
+        if (latRef === "S") latitude = -latitude;
+        if (lngRef === "W") longitude = -longitude;
+        gps = { latitude, longitude };
+      }
+    }
+  }
+
+  if (!gps && !dateTime) return null;
+  return { gps, dateTime };
+}
+
+export async function extractPhotoMeta(file: File): Promise<{
+  gps: { latitude: number; longitude: number } | null;
+  dateTime: string | null;
+} | null> {
+  try {
+    const buf = await file.arrayBuffer();
+    const tiff = readExifFromJpeg(buf) ?? readExifFromHeic(buf);
+    if (!tiff) return null;
+    return parseExifMeta(tiff);
+  } catch {
+    return null;
+  }
+}
+
+export async function reverseGeocode(lat: number, lng: number): Promise<string> {
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=${navigator.language}`
+    );
+    const data = await res.json();
+    return data.display_name ?? "";
+  } catch {
+    return "";
+  }
+}
+
+export async function fileToDataUri(file: File): Promise<string> {
+  let f = file;
+  if (needsImageConversion(f)) {
+    f = await convertToJpeg(f);
+  }
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(new Error("Failed to read file"));
+    reader.readAsDataURL(f);
+  });
+}
+
+export async function urlToDataUri(url: string): Promise<string> {
+  const res = await fetch(url);
+  const blob = await res.blob();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(new Error("Failed to encode file"));
+    reader.readAsDataURL(blob);
+  });
+}
+
+/** Convert a data URI back to a Blob (for file uploads) */
+export function dataUriToBlob(dataUri: string): Blob {
+  const [header, base64] = dataUri.split(',');
+  const mime = header.match(/:(.*?);/)?.[1] ?? 'application/octet-stream';
+  const bytes = atob(base64);
+  const arr = new Uint8Array(bytes.length);
+  for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+  return new Blob([arr], { type: mime });
+}
+
+// --- High-level AI features ---
+
+export async function classify(
+  text: string,
+  categories: string[]
+): Promise<{ category: string; confidence: number }> {
+  return safeJsonCompletion([
+    {
+      role: "system",
+      content: [
+        "You are a classifier. Respond ONLY with valid JSON, nothing else.",
+        'Output format: {"category": "<one of the allowed categories>", "confidence": <0-1>}',
+        `Allowed categories: ${JSON.stringify(categories)}`,
+      ].join("\n"),
+    },
+    { role: "user", content: text },
+  ], { temperature: 0 });
+}
+
+export async function extract<T = Record<string, unknown>>(
+  text: string,
+  schemaDescription: string
+): Promise<T> {
+  return safeJsonCompletion([
+    {
+      role: "system",
+      content: [
+        "You are a data extraction engine. Respond ONLY with valid JSON matching the requested schema.",
+        "If a field cannot be determined from the input, use null.",
+        `Schema:\n${schemaDescription}`,
+      ].join("\n"),
+    },
+    { role: "user", content: text },
+  ], { temperature: 0 });
+}
+
+export async function summarize(
+  text: string,
+  options: { maxSentences?: number; language?: string } = {}
+): Promise<string> {
+  const { maxSentences = 3, language } = options;
+  const instructions = [
+    `Summarize the following text in at most ${maxSentences} sentences.`,
+    "Be concise and preserve key facts.",
+  ];
+  if (language) instructions.push(`Write the summary in ${language}.`);
+  return chatCompletion([
+    { role: "system", content: instructions.join(" ") },
+    { role: "user", content: text },
+  ]);
+}
+
+export async function translate(
+  text: string,
+  targetLanguage: string,
+  sourceLanguage?: string
+): Promise<string> {
+  const from = sourceLanguage ? ` from ${sourceLanguage}` : "";
+  return chatCompletion([
+    {
+      role: "system",
+      content: `Translate the following text${from} to ${targetLanguage}. Output ONLY the translation, nothing else.`,
+    },
+    { role: "user", content: text },
+  ]);
+}
+
+export async function analyzeImage(imageDataUri: string, prompt: string): Promise<string> {
+  return chatCompletion([
+    {
+      role: "user",
+      content: [
+        { type: "text", text: prompt },
+        { type: "image_url", image_url: { url: imageDataUri } },
+      ],
+    },
+  ]);
+}
+
+export async function analyzeDocument(fileDataUri: string, prompt: string): Promise<string> {
+  return chatCompletion([
+    {
+      role: "user",
+      content: [
+        { type: "text", text: prompt },
+        { type: "file", file: { file_data: fileDataUri } },
+      ],
+    },
+  ]);
+}
+
+export async function extractFromPhoto<T = Record<string, unknown>>(
+  dataUri: string,
+  schemaDescription: string,
+  photoContext?: string,
+  intent?: string
+): Promise<T> {
+  const isImage = dataUri.startsWith("data:image/");
+  const fileContent = isImage
+    ? { type: "image_url" as const, image_url: { url: dataUri } }
+    : { type: "file" as const, file: { file_data: dataUri } };
+  const systemParts = [
+    "Extract structured data from the provided " + (isImage ? "image" : "document") + ".",
+    "Respond ONLY with valid JSON matching the schema.",
+    "Use null for any field that cannot be determined.",
+  ];
+  if (intent) {
+    systemParts.push(`<user-intent>${intent}</user-intent>`);
+  }
+  if (photoContext) {
+    systemParts.push(photoContext);
+  }
+  systemParts.push(`Schema:\n${schemaDescription}`);
+  return safeJsonCompletion([
+    {
+      role: "system",
+      content: systemParts.join("\n"),
+    },
+    {
+      role: "user",
+      content: [
+        { type: "text", text: "Extract the data from this " + (isImage ? "image" : "document") + "." },
+        fileContent,
+      ],
+    },
+  ]);
+}
+
+```
+
+## src/lib/chat-context.ts
+```
+export const CHAT_SYSTEM_PROMPT = `Du bist ein hilfreicher Assistent für diese App.\n\nDie App verwaltet folgende Daten:\n- Kategorien: Kategoriename, Beschreibung\n- Orte: Name des Ortes, Kategorie (→ Kategorien), Straße, Hausnummer, Postleitzahl, Stadt, Land, Standort auf der Karte (Standort/Adresse), Website, Telefonnummer, Öffnungszeiten, Beschreibung / Warum interessant?, Fotos, Bewertung, Bereits besucht (ja/nein), Besuchsdatum (Datum), Persönliche Notizen nach dem Besuch\n\nDu kannst:\n- Fragen zur App und den Daten beantworten\n- Hochgeladene Bilder und Dokumente analysieren\n- Texte zusammenfassen oder übersetzen\n- Bei der Dateneingabe helfen\n\nAntworte kurz und präzise. Verwende die gleiche Sprache wie der Nutzer.`;
+
+```
+
+## src/config/ai-features.ts
+```
+/**
+ * AI feature toggles per entity.
+ * Set to true to show "Foto scannen" button in the create/edit dialog.
+ * The agent can change these values — all other AI files are pre-generated.
+ */
+
+export const AI_PHOTO_SCAN: Record<string, boolean> = {
+  Kategorien: true,
+  Orte: true,
+};
+
+/**
+ * Extract GPS coordinates from photo EXIF metadata and use them
+ * to provide location context (reverse geocoding) to the AI extraction
+ * and to auto-populate geo fields.
+ */
+export const AI_PHOTO_LOCATION: Record<string, boolean> = {
+  Kategorien: true,
+  Orte: true,
+};
+```
+
+## src/pages/AdminPage.tsx
+```
+import { useState, useMemo, useCallback } from 'react';
+import { useDashboardData } from '@/hooks/useDashboardData';
+import type { Kategorien, Orte } from '@/types/app';
+import { LivingAppsService, extractRecordId, cleanFieldsForApi } from '@/services/livingAppsService';
+import { KategorienDialog } from '@/components/dialogs/KategorienDialog';
+import { KategorienViewDialog } from '@/components/dialogs/KategorienViewDialog';
+import { OrteDialog } from '@/components/dialogs/OrteDialog';
+import { OrteViewDialog } from '@/components/dialogs/OrteViewDialog';
+import { BulkEditDialog } from '@/components/dialogs/BulkEditDialog';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { PageShell } from '@/components/PageShell';
+import { AI_PHOTO_SCAN, AI_PHOTO_LOCATION } from '@/config/ai-features';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import {
+  Table, TableBody, TableCell, TableHead,
+  TableHeader, TableRow,
+} from '@/components/ui/table';
+import {
+  Select, SelectContent, SelectItem,
+  SelectTrigger, SelectValue,
+} from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
+import { IconPencil, IconTrash, IconPlus, IconFilter, IconX, IconArrowsUpDown, IconArrowUp, IconArrowDown, IconSearch, IconCopy, IconFileText } from '@tabler/icons-react';
+import { format, parseISO } from 'date-fns';
+import { de } from 'date-fns/locale';
+
+function fmtDate(d?: string) {
+  if (!d) return '—';
+  try { return format(parseISO(d), 'dd.MM.yyyy', { locale: de }); } catch { return d; }
+}
+
+// Field metadata per entity for bulk edit and column filters
+const KATEGORIEN_FIELDS = [
+  { key: 'kategorie_name', label: 'Kategoriename', type: 'string/text' },
+  { key: 'kategorie_beschreibung', label: 'Beschreibung', type: 'string/textarea' },
+];
+const ORTE_FIELDS = [
+  { key: 'ort_name', label: 'Name des Ortes', type: 'string/text' },
+  { key: 'kategorie', label: 'Kategorie', type: 'applookup/select', targetEntity: 'kategorien', targetAppId: 'KATEGORIEN', displayField: 'kategorie_name' },
+  { key: 'strasse', label: 'Straße', type: 'string/text' },
+  { key: 'hausnummer', label: 'Hausnummer', type: 'string/text' },
+  { key: 'postleitzahl', label: 'Postleitzahl', type: 'string/text' },
+  { key: 'stadt', label: 'Stadt', type: 'string/text' },
+  { key: 'land', label: 'Land', type: 'string/text' },
+  { key: 'standort', label: 'Standort auf der Karte', type: 'geo' },
+  { key: 'website', label: 'Website', type: 'string/url' },
+  { key: 'telefon', label: 'Telefonnummer', type: 'string/tel' },
+  { key: 'oeffnungszeiten', label: 'Öffnungszeiten', type: 'string/text' },
+  { key: 'beschreibung', label: 'Beschreibung / Warum interessant?', type: 'string/textarea' },
+  { key: 'fotos', label: 'Fotos', type: 'file' },
+  { key: 'bewertung', label: 'Bewertung', type: 'lookup/radio', options: [{ key: 'rating_1', label: '⭐ 1 – Weniger beeindruckend' }, { key: 'rating_2', label: '⭐⭐ 2 – Ganz okay' }, { key: 'rating_3', label: '⭐⭐⭐ 3 – Gut' }, { key: 'rating_4', label: '⭐⭐⭐⭐ 4 – Sehr gut' }, { key: 'rating_5', label: '⭐⭐⭐⭐⭐ 5 – Absolut empfehlenswert' }] },
+  { key: 'bereits_besucht', label: 'Bereits besucht', type: 'bool' },
+  { key: 'besuchsdatum', label: 'Besuchsdatum', type: 'date/date' },
+  { key: 'notizen_nach_besuch', label: 'Persönliche Notizen nach dem Besuch', type: 'string/textarea' },
+];
+
+const ENTITY_TABS = [
+  { key: 'kategorien', label: 'Kategorien', pascal: 'Kategorien' },
+  { key: 'orte', label: 'Orte', pascal: 'Orte' },
+] as const;
+
+type EntityKey = typeof ENTITY_TABS[number]['key'];
+
+export default function AdminPage() {
+  const data = useDashboardData();
+  const { loading, error, fetchAll } = data;
+
+  const [activeTab, setActiveTab] = useState<EntityKey>('kategorien');
+  const [selectedIds, setSelectedIds] = useState<Record<EntityKey, Set<string>>>(() => ({
+    'kategorien': new Set(),
+    'orte': new Set(),
+  }));
+  const [filters, setFilters] = useState<Record<EntityKey, Record<string, string>>>(() => ({
+    'kategorien': {},
+    'orte': {},
+  }));
+  const [showFilters, setShowFilters] = useState(false);
+  const [dialogState, setDialogState] = useState<{ entity: EntityKey; record: any } | null>(null);
+  const [createEntity, setCreateEntity] = useState<EntityKey | null>(null);
+  const [deleteTargets, setDeleteTargets] = useState<{ entity: EntityKey; ids: string[] } | null>(null);
+  const [bulkEditOpen, setBulkEditOpen] = useState<EntityKey | null>(null);
+  const [viewState, setViewState] = useState<{ entity: EntityKey; record: any } | null>(null);
+  const [bulkLoading, setBulkLoading] = useState(false);
+  const [sortKey, setSortKey] = useState('');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [search, setSearch] = useState('');
+
+  const getRecords = useCallback((entity: EntityKey) => {
+    switch (entity) {
+      case 'kategorien': return (data as any).kategorien as Kategorien[] ?? [];
+      case 'orte': return (data as any).orte as Orte[] ?? [];
+      default: return [];
+    }
+  }, [data]);
+
+  const getLookupLists = useCallback((entity: EntityKey) => {
+    const lists: Record<string, any[]> = {};
+    switch (entity) {
+      case 'orte':
+        lists.kategorienList = (data as any).kategorien ?? [];
+        break;
+    }
+    return lists;
+  }, [data]);
+
+  const getApplookupDisplay = useCallback((entity: EntityKey, fieldKey: string, url?: unknown) => {
+    if (!url) return '—';
+    const id = extractRecordId(url);
+    if (!id) return '—';
+    const lists = getLookupLists(entity);
+    void fieldKey; // ensure used for noUnusedParameters
+    if (entity === 'orte' && fieldKey === 'kategorie') {
+      const match = (lists.kategorienList ?? []).find((r: any) => r.record_id === id);
+      return match?.fields.kategorie_name ?? '—';
+    }
+    return String(url);
+  }, [getLookupLists]);
+
+  const getFieldMeta = useCallback((entity: EntityKey) => {
+    switch (entity) {
+      case 'kategorien': return KATEGORIEN_FIELDS;
+      case 'orte': return ORTE_FIELDS;
+      default: return [];
+    }
+  }, []);
+
+  const getFilteredRecords = useCallback((entity: EntityKey) => {
+    const records = getRecords(entity);
+    const s = search.toLowerCase();
+    const searched = !s ? records : records.filter((r: any) => {
+      return Object.values(r.fields).some((v: any) => {
+        if (v == null) return false;
+        if (Array.isArray(v)) return v.some((item: any) => typeof item === 'object' && item !== null && 'label' in item ? String((item as any).label).toLowerCase().includes(s) : String(item).toLowerCase().includes(s));
+        if (typeof v === 'object' && 'label' in (v as any)) return String((v as any).label).toLowerCase().includes(s);
+        return String(v).toLowerCase().includes(s);
+      });
+    });
+    const entityFilters = filters[entity] ?? {};
+    const fieldMeta = getFieldMeta(entity);
+    return searched.filter((r: any) => {
+      return fieldMeta.every((fm: any) => {
+        const fv = entityFilters[fm.key];
+        if (!fv || fv === '') return true;
+        const val = r.fields?.[fm.key];
+        if (fm.type === 'bool') {
+          if (fv === 'true') return val === true;
+          if (fv === 'false') return val !== true;
+          return true;
+        }
+        if (fm.type === 'lookup/select' || fm.type === 'lookup/radio') {
+          const label = val && typeof val === 'object' && 'label' in val ? val.label : '';
+          return String(label).toLowerCase().includes(fv.toLowerCase());
+        }
+        if (fm.type.includes('multiplelookup')) {
+          if (!Array.isArray(val)) return false;
+          return val.some((item: any) => String(item?.label ?? '').toLowerCase().includes(fv.toLowerCase()));
+        }
+        if (fm.type.includes('applookup')) {
+          const display = getApplookupDisplay(entity, fm.key, val);
+          return String(display).toLowerCase().includes(fv.toLowerCase());
+        }
+        return String(val ?? '').toLowerCase().includes(fv.toLowerCase());
+      });
+    });
+  }, [getRecords, filters, getFieldMeta, getApplookupDisplay, search]);
+
+  function toggleSort(key: string) {
+    if (sortKey === key) {
+      if (sortDir === 'asc') setSortDir('desc');
+      else { setSortKey(''); setSortDir('asc'); }
+    } else { setSortKey(key); setSortDir('asc'); }
+  }
+
+  function sortRecords<T extends { fields: Record<string, any> }>(recs: T[]): T[] {
+    if (!sortKey) return recs;
+    return [...recs].sort((a, b) => {
+      let va: any = a.fields[sortKey], vb: any = b.fields[sortKey];
+      if (va == null && vb == null) return 0;
+      if (va == null) return 1;
+      if (vb == null) return -1;
+      if (typeof va === 'object' && 'label' in va) va = va.label;
+      if (typeof vb === 'object' && 'label' in vb) vb = vb.label;
+      if (typeof va === 'number' && typeof vb === 'number') return sortDir === 'asc' ? va - vb : vb - va;
+      return sortDir === 'asc' ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va));
+    });
+  }
+
+  const toggleSelect = useCallback((entity: EntityKey, id: string) => {
+    setSelectedIds(prev => {
+      const next = { ...prev, [entity]: new Set(prev[entity]) };
+      if (next[entity].has(id)) next[entity].delete(id);
+      else next[entity].add(id);
+      return next;
+    });
+  }, []);
+
+  const toggleSelectAll = useCallback((entity: EntityKey) => {
+    const filtered = getFilteredRecords(entity);
+    setSelectedIds(prev => {
+      const allSelected = filtered.every((r: any) => prev[entity].has(r.record_id));
+      const next = { ...prev, [entity]: new Set(prev[entity]) };
+      if (allSelected) {
+        filtered.forEach((r: any) => next[entity].delete(r.record_id));
+      } else {
+        filtered.forEach((r: any) => next[entity].add(r.record_id));
+      }
+      return next;
+    });
+  }, [getFilteredRecords]);
+
+  const clearSelection = useCallback((entity: EntityKey) => {
+    setSelectedIds(prev => ({ ...prev, [entity]: new Set() }));
+  }, []);
+
+  const getServiceMethods = useCallback((entity: EntityKey) => {
+    switch (entity) {
+      case 'kategorien': return {
+        create: (fields: any) => LivingAppsService.createKategorienEntry(fields),
+        update: (id: string, fields: any) => LivingAppsService.updateKategorienEntry(id, fields),
+        remove: (id: string) => LivingAppsService.deleteKategorienEntry(id),
+      };
+      case 'orte': return {
+        create: (fields: any) => LivingAppsService.createOrteEntry(fields),
+        update: (id: string, fields: any) => LivingAppsService.updateOrteEntry(id, fields),
+        remove: (id: string) => LivingAppsService.deleteOrteEntry(id),
+      };
+      default: return null;
+    }
+  }, []);
+
+  async function handleCreate(entity: EntityKey, fields: any) {
+    const svc = getServiceMethods(entity);
+    if (!svc) return;
+    await svc.create(fields);
+    fetchAll();
+    setCreateEntity(null);
+  }
+
+  async function handleUpdate(fields: any) {
+    if (!dialogState) return;
+    const svc = getServiceMethods(dialogState.entity);
+    if (!svc) return;
+    await svc.update(dialogState.record.record_id, fields);
+    fetchAll();
+    setDialogState(null);
+  }
+
+  async function handleBulkDelete() {
+    if (!deleteTargets) return;
+    const svc = getServiceMethods(deleteTargets.entity);
+    if (!svc) return;
+    setBulkLoading(true);
+    try {
+      for (const id of deleteTargets.ids) {
+        await svc.remove(id);
+      }
+      clearSelection(deleteTargets.entity);
+      fetchAll();
+    } finally {
+      setBulkLoading(false);
+      setDeleteTargets(null);
+    }
+  }
+
+  async function handleBulkClone() {
+    const svc = getServiceMethods(activeTab);
+    if (!svc) return;
+    setBulkLoading(true);
+    try {
+      const records = getRecords(activeTab);
+      const ids = Array.from(selectedIds[activeTab]);
+      for (const id of ids) {
+        const rec = records.find((r: any) => r.record_id === id);
+        if (!rec) continue;
+        const clean = cleanFieldsForApi(rec.fields, activeTab);
+        await svc.create(clean as any);
+      }
+      clearSelection(activeTab);
+      fetchAll();
+    } finally {
+      setBulkLoading(false);
+    }
+  }
+
+  async function handleBulkEdit(fieldKey: string, value: any) {
+    if (!bulkEditOpen) return;
+    const svc = getServiceMethods(bulkEditOpen);
+    if (!svc) return;
+    setBulkLoading(true);
+    try {
+      const ids = Array.from(selectedIds[bulkEditOpen]);
+      for (const id of ids) {
+        await svc.update(id, { [fieldKey]: value });
+      }
+      clearSelection(bulkEditOpen);
+      fetchAll();
+    } finally {
+      setBulkLoading(false);
+      setBulkEditOpen(null);
+    }
+  }
+
+  function updateFilter(entity: EntityKey, fieldKey: string, value: string) {
+    setFilters(prev => ({
+      ...prev,
+      [entity]: { ...prev[entity], [fieldKey]: value },
+    }));
+  }
+
+  function clearEntityFilters(entity: EntityKey) {
+    setFilters(prev => ({ ...prev, [entity]: {} }));
+  }
+
+  const activeFilterCount = useMemo(() => {
+    const f = filters[activeTab] ?? {};
+    return Object.values(f).filter(v => v && v !== '').length;
+  }, [filters, activeTab]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-32">
+        <div className="animate-spin h-8 w-8 border-2 border-primary border-t-transparent rounded-full" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-32 gap-4">
+        <p className="text-destructive">{error.message}</p>
+        <Button onClick={fetchAll}>Erneut versuchen</Button>
+      </div>
+    );
+  }
+
+  const filtered = getFilteredRecords(activeTab);
+  const sel = selectedIds[activeTab];
+  const allFiltered = filtered.every((r: any) => sel.has(r.record_id)) && filtered.length > 0;
+  const fieldMeta = getFieldMeta(activeTab);
+
+  return (
+    <PageShell
+      title="Verwaltung"
+      subtitle="Alle Daten verwalten"
+      action={
+        <Button onClick={() => setCreateEntity(activeTab)} className="shrink-0">
+          <IconPlus className="h-4 w-4 mr-2" /> Hinzufügen
+        </Button>
+      }
+    >
+      <div className="flex gap-2 flex-wrap">
+        {ENTITY_TABS.map(tab => {
+          const count = getRecords(tab.key).length;
+          return (
+            <button
+              key={tab.key}
+              onClick={() => { setActiveTab(tab.key); setSearch(''); setSortKey(''); setSortDir('asc'); fetchAll(); }}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
+                activeTab === tab.key
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
+              }`}
+            >
+              {tab.label}
+              <Badge variant="secondary" className="ml-1 text-xs">{count}</Badge>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center gap-2">
+          <div className="relative w-full max-w-sm">
+            <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Suchen..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="pl-9 h-9"
+            />
+          </div>
+          <Button variant="outline" size="sm" onClick={() => setShowFilters(f => !f)} className="gap-2">
+            <IconFilter className="h-4 w-4" />
+            Filtern
+            {activeFilterCount > 0 && (
+              <Badge variant="secondary" className="ml-1">{activeFilterCount}</Badge>
+            )}
+          </Button>
+          {activeFilterCount > 0 && (
+            <Button variant="ghost" size="sm" onClick={() => clearEntityFilters(activeTab)}>
+              Filter zurücksetzen
+            </Button>
+          )}
+        </div>
+        {sel.size > 0 && (
+          <div className="flex items-center gap-2 flex-wrap bg-muted/60 rounded-lg px-3 py-1.5">
+            <span className="text-sm font-medium">{sel.size} ausgewählt</span>
+            <Button variant="outline" size="sm" onClick={() => setBulkEditOpen(activeTab)}>
+              <IconPencil className="h-3.5 w-3.5 sm:mr-1" /> <span className="hidden sm:inline">Feld bearbeiten</span>
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => handleBulkClone()}>
+              <IconCopy className="h-3.5 w-3.5 sm:mr-1" /> <span className="hidden sm:inline">Kopieren</span>
+            </Button>
+            <Button variant="destructive" size="sm" onClick={() => setDeleteTargets({ entity: activeTab, ids: Array.from(sel) })}>
+              <IconTrash className="h-3.5 w-3.5 sm:mr-1" /> <span className="hidden sm:inline">Ausgewählte löschen</span>
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => clearSelection(activeTab)}>
+              <IconX className="h-3.5 w-3.5 sm:mr-1" /> <span className="hidden sm:inline">Auswahl aufheben</span>
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {showFilters && (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 p-4 rounded-lg border bg-muted/30">
+          {fieldMeta.map((fm: any) => (
+            <div key={fm.key} className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">{fm.label}</label>
+              {fm.type === 'bool' ? (
+                <Select value={filters[activeTab]?.[fm.key] ?? ''} onValueChange={v => updateFilter(activeTab, fm.key, v === 'all' ? '' : v)}>
+                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Alle" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Alle</SelectItem>
+                    <SelectItem value="true">Ja</SelectItem>
+                    <SelectItem value="false">Nein</SelectItem>
+                  </SelectContent>
+                </Select>
+              ) : fm.type === 'lookup/select' || fm.type === 'lookup/radio' ? (
+                <Select value={filters[activeTab]?.[fm.key] ?? ''} onValueChange={v => updateFilter(activeTab, fm.key, v === 'all' ? '' : v)}>
+                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Alle" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Alle</SelectItem>
+                    {fm.options?.map((o: any) => (
+                      <SelectItem key={o.key} value={o.label}>{o.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input
+                  className="h-8 text-xs"
+                  placeholder="Filtern..."
+                  value={filters[activeTab]?.[fm.key] ?? ''}
+                  onChange={e => updateFilter(activeTab, fm.key, e.target.value)}
+                />
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="rounded-[27px] bg-card shadow-lg overflow-x-auto">
+        <Table className="[&_tbody_td]:px-6 [&_tbody_td]:py-2 [&_tbody_td]:text-base [&_tbody_td]:font-medium [&_tbody_tr:first-child_td]:pt-6 [&_tbody_tr:last-child_td]:pb-10">
+          <TableHeader className="bg-secondary">
+            <TableRow className="border-b border-input">
+              <TableHead className="w-10 px-6">
+                <Checkbox
+                  checked={allFiltered}
+                  onCheckedChange={() => toggleSelectAll(activeTab)}
+                />
+              </TableHead>
+              {fieldMeta.map((fm: any) => (
+                <TableHead key={fm.key} className="uppercase text-xs font-semibold text-secondary-foreground tracking-wider px-6 cursor-pointer select-none hover:text-foreground transition-colors" onClick={() => toggleSort(fm.key)}>
+                  <span className="inline-flex items-center gap-1">
+                    {fm.label}
+                    {sortKey === fm.key ? (sortDir === 'asc' ? <IconArrowUp size={14} /> : <IconArrowDown size={14} />) : <IconArrowsUpDown size={14} className="opacity-30" />}
+                  </span>
+                </TableHead>
+              ))}
+              <TableHead className="w-24 uppercase text-xs font-semibold text-secondary-foreground tracking-wider px-6">Aktionen</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {sortRecords(filtered).map((record: any) => (
+              <TableRow key={record.record_id} className={`transition-colors cursor-pointer ${sel.has(record.record_id) ? "bg-primary/5" : "hover:bg-muted/50"}`} onClick={(e) => { if ((e.target as HTMLElement).closest('button, [role="checkbox"]')) return; setViewState({ entity: activeTab, record }); }}>
+                <TableCell>
+                  <Checkbox
+                    checked={sel.has(record.record_id)}
+                    onCheckedChange={() => toggleSelect(activeTab, record.record_id)}
+                  />
+                </TableCell>
+                {fieldMeta.map((fm: any) => {
+                  const val = record.fields?.[fm.key];
+                  if (fm.type === 'bool') {
+                    return (
+                      <TableCell key={fm.key}>
+                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
+                          val ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'
+                        }`}>
+                          {val ? 'Ja' : 'Nein'}
+                        </span>
+                      </TableCell>
+                    );
+                  }
+                  if (fm.type === 'lookup/select' || fm.type === 'lookup/radio') {
+                    return <TableCell key={fm.key}><span className="inline-flex items-center bg-secondary border border-[#bfdbfe] text-[#2563eb] rounded-[10px] px-2 py-1 text-sm font-medium">{val?.label ?? '—'}</span></TableCell>;
+                  }
+                  if (fm.type.includes('multiplelookup')) {
+                    return <TableCell key={fm.key}>{Array.isArray(val) ? val.map((v: any) => v?.label ?? v).join(', ') : '—'}</TableCell>;
+                  }
+                  if (fm.type.includes('applookup')) {
+                    return <TableCell key={fm.key}><span className="inline-flex items-center bg-secondary border border-[#bfdbfe] text-[#2563eb] rounded-[10px] px-2 py-1 text-sm font-medium">{getApplookupDisplay(activeTab, fm.key, val)}</span></TableCell>;
+                  }
+                  if (fm.type.includes('date')) {
+                    return <TableCell key={fm.key} className="text-muted-foreground">{fmtDate(val)}</TableCell>;
+                  }
+                  if (fm.type.startsWith('file')) {
+                    return (
+                      <TableCell key={fm.key}>
+                        {val ? (
+                          <div className="relative h-8 w-8 rounded bg-muted overflow-hidden">
+                            <img src={val} alt="" className="h-full w-full object-cover" onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                          </div>
+                        ) : '—'}
+                      </TableCell>
+                    );
+                  }
+                  if (fm.type === 'string/textarea') {
+                    return <TableCell key={fm.key} className="max-w-xs"><span className="truncate block">{val ?? '—'}</span></TableCell>;
+                  }
+                  if (fm.type === 'geo') {
+                    return (
+                      <TableCell key={fm.key} className="max-w-[200px]">
+                        <span className="truncate block" title={val ? `${val.lat}, ${val.long}` : undefined}>
+                          {val?.info ?? (val ? `${val.lat?.toFixed(4)}, ${val.long?.toFixed(4)}` : '—')}
+                        </span>
+                      </TableCell>
+                    );
+                  }
+                  return <TableCell key={fm.key}>{val ?? '—'}</TableCell>;
+                })}
+                <TableCell>
+                  <div className="flex gap-1">
+                    <Button variant="ghost" size="icon" onClick={() => setDialogState({ entity: activeTab, record })}>
+                      <IconPencil className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={() => setDeleteTargets({ entity: activeTab, ids: [record.record_id] })}>
+                      <IconTrash className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+            {filtered.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={fieldMeta.length + 2} className="text-center py-16 text-muted-foreground">
+                  Keine Ergebnisse gefunden.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
+
+      {(createEntity === 'kategorien' || dialogState?.entity === 'kategorien') && (
+        <KategorienDialog
+          open={createEntity === 'kategorien' || dialogState?.entity === 'kategorien'}
+          onClose={() => { setCreateEntity(null); setDialogState(null); }}
+          onSubmit={dialogState?.entity === 'kategorien' ? handleUpdate : (fields: any) => handleCreate('kategorien', fields)}
+          defaultValues={dialogState?.entity === 'kategorien' ? dialogState.record?.fields : undefined}
+          enablePhotoScan={AI_PHOTO_SCAN['Kategorien']}
+          enablePhotoLocation={AI_PHOTO_LOCATION['Kategorien']}
+        />
+      )}
+      {(createEntity === 'orte' || dialogState?.entity === 'orte') && (
+        <OrteDialog
+          open={createEntity === 'orte' || dialogState?.entity === 'orte'}
+          onClose={() => { setCreateEntity(null); setDialogState(null); }}
+          onSubmit={dialogState?.entity === 'orte' ? handleUpdate : (fields: any) => handleCreate('orte', fields)}
+          defaultValues={dialogState?.entity === 'orte' ? dialogState.record?.fields : undefined}
+          kategorienList={(data as any).kategorien ?? []}
+          enablePhotoScan={AI_PHOTO_SCAN['Orte']}
+          enablePhotoLocation={AI_PHOTO_LOCATION['Orte']}
+        />
+      )}
+      {viewState?.entity === 'kategorien' && (
+        <KategorienViewDialog
+          open={viewState?.entity === 'kategorien'}
+          onClose={() => setViewState(null)}
+          record={viewState?.record}
+          onEdit={(r: any) => { setViewState(null); setDialogState({ entity: 'kategorien', record: r }); }}
+        />
+      )}
+      {viewState?.entity === 'orte' && (
+        <OrteViewDialog
+          open={viewState?.entity === 'orte'}
+          onClose={() => setViewState(null)}
+          record={viewState?.record}
+          onEdit={(r: any) => { setViewState(null); setDialogState({ entity: 'orte', record: r }); }}
+          kategorienList={(data as any).kategorien ?? []}
+        />
+      )}
+
+      <BulkEditDialog
+        open={!!bulkEditOpen}
+        onClose={() => setBulkEditOpen(null)}
+        onApply={handleBulkEdit}
+        fields={bulkEditOpen ? getFieldMeta(bulkEditOpen) : []}
+        selectedCount={bulkEditOpen ? selectedIds[bulkEditOpen].size : 0}
+        loading={bulkLoading}
+        lookupLists={bulkEditOpen ? getLookupLists(bulkEditOpen) : {}}
+      />
+
+      <ConfirmDialog
+        open={!!deleteTargets}
+        onClose={() => setDeleteTargets(null)}
+        onConfirm={handleBulkDelete}
+        title="Ausgewählte löschen"
+        description={`Sollen ${deleteTargets?.ids.length ?? 0} Einträge wirklich gelöscht werden? Diese Aktion kann nicht rückgängig gemacht werden.`}
+      />
+    </PageShell>
+  );
+}
+```

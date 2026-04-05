@@ -1,0 +1,3 @@
+- Kategorien (kategorien): kategorie_name[string/text], kategorie_beschreibung[string/textarea]
+- Orte (orte): ort_name[string/text], kategorie[applookup/select], strasse[string/text], hausnummer[string/text], postleitzahl[string/text], stadt[string/text], land[string/text], standort[geo], website[string/url], telefon[string/tel], oeffnungszeiten[string/text], beschreibung[string/textarea], fotos[file], bewertung[lookup/radio], bereits_besucht[bool], besuchsdatum[date/date], notizen_nach_besuch[string/textarea]
+  → kategorie links to app_id 69d19fcaf3bbc58ce0bfda94
