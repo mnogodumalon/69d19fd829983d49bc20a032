@@ -88,6 +88,7 @@ export default function DashboardOverview() {
   const [editRecord, setEditRecord] = useState<EnrichedOrte | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<EnrichedOrte | null>(null);
   const [detailOrt, setDetailOrt] = useState<EnrichedOrte | null>(null);
+  const [highlightMapId, setHighlightMapId] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     let result = enrichedOrte;
@@ -128,6 +129,19 @@ export default function DashboardOverview() {
     await LivingAppsService.deleteOrteEntry(deleteTarget.record_id);
     setDeleteTarget(null);
     fetchAll();
+  };
+
+  const handleToggleVisited = async (ort: EnrichedOrte) => {
+    await LivingAppsService.updateOrteEntry(ort.record_id, {
+      ...ort.fields,
+      bereits_besucht: !ort.fields.bereits_besucht,
+    });
+    fetchAll();
+  };
+
+  const handleShowOnMap = (ort: EnrichedOrte) => {
+    setView('map');
+    setHighlightMapId(ort.record_id);
   };
 
   const handleEdit = (ort: EnrichedOrte) => {
@@ -176,6 +190,25 @@ export default function DashboardOverview() {
           icon={<IconCategory size={18} className="text-muted-foreground" />}
         />
       </div>
+
+      {/* Fortschrittsbalken */}
+      {orte.length > 0 && (
+        <div className="bg-card border border-border rounded-2xl px-5 py-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-medium text-foreground">Besuchsfortschritt</span>
+            <span className="text-sm text-muted-foreground">{visitedCount} von {orte.length} besucht</span>
+          </div>
+          <div className="h-2 bg-muted rounded-full overflow-hidden">
+            <div
+              className="h-full bg-green-500 rounded-full transition-all duration-700"
+              style={{ width: `${(visitedCount / orte.length) * 100}%` }}
+            />
+          </div>
+          <p className="text-xs text-muted-foreground mt-1.5">
+            {Math.round((visitedCount / orte.length) * 100)}% deiner Lieblingsorte bereits besucht
+          </p>
+        </div>
+      )}
 
       {/* Toolbar */}
       <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
@@ -281,6 +314,7 @@ export default function DashboardOverview() {
           mapPoints={mapPoints}
           onEdit={handleEdit}
           onDelete={ort => setDeleteTarget(ort)}
+          highlightId={highlightMapId ?? undefined}
         />
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
@@ -307,6 +341,8 @@ export default function DashboardOverview() {
               onEdit={() => handleEdit(ort)}
               onDelete={() => setDeleteTarget(ort)}
               onDetail={() => setDetailOrt(ort)}
+              onToggleVisited={() => handleToggleVisited(ort)}
+              onShowOnMap={ort.fields.standort ? () => handleShowOnMap(ort) : undefined}
             />
           ))}
         </div>
@@ -359,13 +395,22 @@ function MapView({
   mapPoints,
   onEdit,
   onDelete,
+  highlightId,
 }: {
   orte: EnrichedOrte[];
   mapPoints: [number, number][];
   onEdit: (ort: EnrichedOrte) => void;
   onDelete: (ort: EnrichedOrte) => void;
+  highlightId?: string;
 }) {
   const [selected, setSelected] = useState<EnrichedOrte | null>(null);
+
+  useEffect(() => {
+    if (highlightId) {
+      const ort = orte.find(o => o.record_id === highlightId);
+      if (ort) setSelected(ort);
+    }
+  }, [highlightId, orte]);
   const orteWithCoords = orte.filter(o => o.fields.standort);
   const orteWithoutCoords = orte.length - orteWithCoords.length;
   const visitedOnMap = orteWithCoords.filter(o => o.fields.bereits_besucht).length;
@@ -675,11 +720,15 @@ function OrtCard({
   onEdit,
   onDelete,
   onDetail,
+  onToggleVisited,
+  onShowOnMap,
 }: {
   ort: EnrichedOrte;
   onEdit: () => void;
   onDelete: () => void;
   onDetail: () => void;
+  onToggleVisited: () => void;
+  onShowOnMap?: () => void;
 }) {
   const address = [ort.fields.strasse, ort.fields.hausnummer, ort.fields.postleitzahl, ort.fields.stadt]
     .filter(Boolean).join(' ');
@@ -718,13 +767,17 @@ function OrtCard({
               </span>
             )}
           </div>
-          <span className={`shrink-0 text-xs px-2 py-0.5 rounded-full font-medium ${
-            ort.fields.bereits_besucht
-              ? 'bg-green-100 text-green-700'
-              : 'bg-amber-100 text-amber-700'
-          }`}>
-            {ort.fields.bereits_besucht ? 'Besucht' : 'Offen'}
-          </span>
+          <button
+            onClick={e => { e.stopPropagation(); onToggleVisited(); }}
+            title={ort.fields.bereits_besucht ? 'Als nicht besucht markieren' : 'Als besucht markieren'}
+            className={`shrink-0 text-xs px-2 py-0.5 rounded-full font-medium transition-colors ${
+              ort.fields.bereits_besucht
+                ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+            }`}
+          >
+            {ort.fields.bereits_besucht ? '✓ Besucht' : '○ Offen'}
+          </button>
         </div>
 
         {rating && <StarRating value={rating} />}
@@ -754,6 +807,11 @@ function OrtCard({
             <IconPencil size={14} className="mr-1 shrink-0" />
             Bearbeiten
           </Button>
+          {onShowOnMap && (
+            <Button variant="outline" size="sm" onClick={onShowOnMap} title="Auf Karte anzeigen">
+              <IconMap size={14} className="shrink-0" />
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={onDelete} className="text-destructive hover:text-destructive">
             <IconTrash size={14} className="shrink-0" />
           </Button>
