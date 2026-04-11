@@ -20,7 +20,14 @@ import {
   IconMapPin, IconPlus, IconPencil, IconTrash, IconSearch,
   IconStar, IconCheckbox, IconClock, IconCategory, IconPhone,
   IconWorld, IconX, IconMap, IconLayoutGrid,
+  IconCalendar, IconChevronLeft, IconChevronRight,
 } from '@tabler/icons-react';
+import {
+  startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval,
+  format, isSameMonth, isToday, addMonths, subMonths,
+  addWeeks, subWeeks, addDays, subDays, addYears, subYears,
+} from 'date-fns';
+import { de } from 'date-fns/locale';
 
 const APPGROUP_ID = '69d19fd829983d49bc20a032';
 const REPAIR_ENDPOINT = '/claude/build/repair';
@@ -357,6 +364,12 @@ export default function DashboardOverview() {
           onDelete={() => { setDeleteTarget(detailOrt); setDetailOrt(null); }}
         />
       )}
+
+      {/* Besuchskalender */}
+      <OrtCalendar
+        orte={enrichedOrte}
+        onDetail={setDetailOrt}
+      />
 
       {/* Dialog */}
       <OrteDialog
@@ -949,6 +962,360 @@ function OrtDetailPanel({
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── Besuchskalender ─────────────────────────────────────────────────────────
+
+type CalView = 'year' | 'month' | 'week' | 'day';
+
+function OrtCalendar({
+  orte,
+  onDetail,
+}: {
+  orte: EnrichedOrte[];
+  onDetail: (ort: EnrichedOrte) => void;
+}) {
+  const today = new Date();
+  const [calView, setCalView] = useState<CalView>('month');
+  const [currentDate, setCurrentDate] = useState(today);
+
+  // Orte nach besuchsdatum gruppieren
+  const orteByDate = useMemo(() => {
+    const map = new Map<string, EnrichedOrte[]>();
+    for (const ort of orte) {
+      if (ort.fields.besuchsdatum) {
+        const key = ort.fields.besuchsdatum.slice(0, 10);
+        if (!map.has(key)) map.set(key, []);
+        map.get(key)!.push(ort);
+      }
+    }
+    return map;
+  }, [orte]);
+
+  const navigate = (dir: 1 | -1) => {
+    setCurrentDate(prev => {
+      if (calView === 'year') return dir === 1 ? addYears(prev, 1) : subYears(prev, 1);
+      if (calView === 'month') return dir === 1 ? addMonths(prev, 1) : subMonths(prev, 1);
+      if (calView === 'week') return dir === 1 ? addWeeks(prev, 1) : subWeeks(prev, 1);
+      return dir === 1 ? addDays(prev, 1) : subDays(prev, 1);
+    });
+  };
+
+  const headerLabel = useMemo(() => {
+    if (calView === 'year') return format(currentDate, 'yyyy');
+    if (calView === 'month') return format(currentDate, 'MMMM yyyy', { locale: de });
+    if (calView === 'week') {
+      const ws = startOfWeek(currentDate, { weekStartsOn: 1 });
+      const we = endOfWeek(currentDate, { weekStartsOn: 1 });
+      return `${format(ws, 'd. MMM', { locale: de })} – ${format(we, 'd. MMM yyyy', { locale: de })}`;
+    }
+    return format(currentDate, 'EEEE, d. MMMM yyyy', { locale: de });
+  }, [calView, currentDate]);
+
+  const totalWithDate = orte.filter(o => o.fields.besuchsdatum).length;
+
+  return (
+    <div className="rounded-2xl border border-border bg-card overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-border flex-wrap">
+        <div className="flex items-center gap-2">
+          <IconCalendar size={16} className="text-muted-foreground shrink-0" />
+          <h3 className="font-semibold text-sm text-foreground">Besuchskalender</h3>
+          {totalWithDate > 0 && (
+            <span className="text-xs text-muted-foreground bg-muted rounded-full px-2 py-0.5">{totalWithDate} Besuche</span>
+          )}
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Navigation */}
+          <div className="flex items-center gap-1">
+            <button onClick={() => navigate(-1)} className="p-1.5 rounded-lg hover:bg-muted transition-colors">
+              <IconChevronLeft size={15} className="shrink-0" />
+            </button>
+            <span className="text-sm font-medium min-w-[170px] text-center capitalize">{headerLabel}</span>
+            <button onClick={() => navigate(1)} className="p-1.5 rounded-lg hover:bg-muted transition-colors">
+              <IconChevronRight size={15} className="shrink-0" />
+            </button>
+            <button
+              onClick={() => setCurrentDate(today)}
+              className="ml-1 text-xs px-2.5 py-1.5 rounded-lg border border-border hover:bg-muted transition-colors text-muted-foreground font-medium"
+            >
+              Heute
+            </button>
+          </div>
+          {/* View-Switcher */}
+          <div className="flex items-center bg-muted rounded-lg p-1">
+            {(['year', 'month', 'week', 'day'] as CalView[]).map(v => (
+              <button
+                key={v}
+                onClick={() => setCalView(v)}
+                className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
+                  calView === v ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {v === 'year' ? 'Jahr' : v === 'month' ? 'Monat' : v === 'week' ? 'Woche' : 'Tag'}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Inhalt */}
+      <div className="p-4">
+        {calView === 'month' && (
+          <CalMonthView
+            currentDate={currentDate}
+            orteByDate={orteByDate}
+            onSelect={onDetail}
+            onDayClick={d => { setCurrentDate(d); setCalView('day'); }}
+          />
+        )}
+        {calView === 'week' && (
+          <CalWeekView currentDate={currentDate} orteByDate={orteByDate} onSelect={onDetail} />
+        )}
+        {calView === 'day' && (
+          <CalDayView currentDate={currentDate} orteByDate={orteByDate} onSelect={onDetail} />
+        )}
+        {calView === 'year' && (
+          <CalYearView
+            currentDate={currentDate}
+            orteByDate={orteByDate}
+            onMonthClick={d => { setCurrentDate(d); setCalView('month'); }}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Monat-Ansicht
+function CalMonthView({ currentDate, orteByDate, onSelect, onDayClick }: {
+  currentDate: Date;
+  orteByDate: Map<string, EnrichedOrte[]>;
+  onSelect: (ort: EnrichedOrte) => void;
+  onDayClick: (date: Date) => void;
+}) {
+  const start = startOfWeek(startOfMonth(currentDate), { weekStartsOn: 1 });
+  const end = endOfWeek(endOfMonth(currentDate), { weekStartsOn: 1 });
+  const days = eachDayOfInterval({ start, end });
+
+  return (
+    <div>
+      <div className="grid grid-cols-7 mb-1">
+        {['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].map(d => (
+          <div key={d} className="text-center text-xs font-medium text-muted-foreground py-2">{d}</div>
+        ))}
+      </div>
+      <div className="grid grid-cols-7 gap-px bg-border rounded-xl overflow-hidden">
+        {days.map(day => {
+          const key = format(day, 'yyyy-MM-dd');
+          const dayOrte = orteByDate.get(key) ?? [];
+          const inMonth = isSameMonth(day, currentDate);
+          const todayDay = isToday(day);
+          return (
+            <div key={key} className={`bg-card min-h-[90px] p-1.5 flex flex-col gap-0.5 ${!inMonth ? 'opacity-40' : ''}`}>
+              <button
+                onClick={() => onDayClick(day)}
+                className={`self-start text-xs font-medium w-6 h-6 flex items-center justify-center rounded-full transition-colors ${
+                  todayDay ? 'bg-primary text-primary-foreground' : 'hover:bg-muted text-foreground'
+                }`}
+              >
+                {format(day, 'd')}
+              </button>
+              {dayOrte.slice(0, 2).map(ort => (
+                <button
+                  key={ort.record_id}
+                  onClick={() => onSelect(ort)}
+                  title={ort.fields.ort_name ?? ''}
+                  className="flex items-center gap-1 w-full text-left rounded overflow-hidden hover:bg-muted/60 transition-colors px-0.5 py-0.5 min-w-0"
+                >
+                  {ort.fields.fotos ? (
+                    <img src={ort.fields.fotos} alt="" className="w-4 h-4 rounded object-cover shrink-0" />
+                  ) : (
+                    <div className="w-4 h-4 rounded bg-green-100 flex items-center justify-center shrink-0">
+                      <IconMapPin size={8} className="text-green-600" />
+                    </div>
+                  )}
+                  <span className="text-[10px] text-foreground truncate leading-none">{ort.fields.ort_name ?? '—'}</span>
+                </button>
+              ))}
+              {dayOrte.length > 2 && (
+                <span className="text-[9px] text-muted-foreground px-1">+{dayOrte.length - 2}</span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// Wochen-Ansicht
+function CalWeekView({ currentDate, orteByDate, onSelect }: {
+  currentDate: Date;
+  orteByDate: Map<string, EnrichedOrte[]>;
+  onSelect: (ort: EnrichedOrte) => void;
+}) {
+  const wStart = startOfWeek(currentDate, { weekStartsOn: 1 });
+  const days = Array.from({ length: 7 }, (_, i) => addDays(wStart, i));
+  return (
+    <div className="grid grid-cols-7 gap-2">
+      {days.map(day => {
+        const key = format(day, 'yyyy-MM-dd');
+        const dayOrte = orteByDate.get(key) ?? [];
+        const todayDay = isToday(day);
+        return (
+          <div key={key} className="flex flex-col gap-1.5 min-w-0">
+            <div className={`text-center rounded-xl py-2 ${todayDay ? 'bg-primary text-primary-foreground' : 'bg-muted/50'}`}>
+              <div className="text-[10px] font-medium capitalize">{format(day, 'EEE', { locale: de })}</div>
+              <div className={`text-base font-bold leading-tight ${todayDay ? '' : 'text-foreground'}`}>{format(day, 'd')}</div>
+            </div>
+            <div className="flex flex-col gap-1">
+              {dayOrte.map(ort => (
+                <button
+                  key={ort.record_id}
+                  onClick={() => onSelect(ort)}
+                  className="w-full text-left rounded-lg overflow-hidden border border-border hover:border-primary/40 hover:shadow-sm transition-all bg-card"
+                >
+                  {ort.fields.fotos && (
+                    <div className="h-14 overflow-hidden">
+                      <img src={ort.fields.fotos} alt="" className="w-full h-full object-cover" />
+                    </div>
+                  )}
+                  <div className="p-1.5">
+                    <p className="text-[10px] font-medium text-foreground leading-tight truncate">{ort.fields.ort_name ?? '—'}</p>
+                    {ort.kategorieName && (
+                      <p className="text-[9px] text-muted-foreground truncate">{ort.kategorieName}</p>
+                    )}
+                  </div>
+                </button>
+              ))}
+              {dayOrte.length === 0 && (
+                <div className="h-12 rounded-lg border border-dashed border-border/40" />
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// Tages-Ansicht
+function CalDayView({ currentDate, orteByDate, onSelect }: {
+  currentDate: Date;
+  orteByDate: Map<string, EnrichedOrte[]>;
+  onSelect: (ort: EnrichedOrte) => void;
+}) {
+  const key = format(currentDate, 'yyyy-MM-dd');
+  const dayOrte = orteByDate.get(key) ?? [];
+  if (dayOrte.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
+        <IconCalendar size={40} className="text-muted-foreground" stroke={1.5} />
+        <div>
+          <p className="font-medium text-foreground">Kein Besuch an diesem Tag</p>
+          <p className="text-sm text-muted-foreground mt-1">Wähle ein anderes Datum oder wechsle zur Monatsansicht.</p>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      {dayOrte.map(ort => (
+        <button
+          key={ort.record_id}
+          onClick={() => onSelect(ort)}
+          className="text-left rounded-2xl border border-border overflow-hidden hover:shadow-md transition-shadow bg-card"
+        >
+          {ort.fields.fotos ? (
+            <div className="h-40 overflow-hidden">
+              <img src={ort.fields.fotos} alt="" className="w-full h-full object-cover" />
+            </div>
+          ) : (
+            <div className="h-40 bg-gradient-to-br from-muted to-muted/50 flex items-center justify-center">
+              <IconMapPin size={36} className="text-muted-foreground/30" stroke={1.5} />
+            </div>
+          )}
+          <div className="p-4 space-y-1.5">
+            <p className="font-semibold text-foreground truncate">{ort.fields.ort_name ?? 'Unbenannter Ort'}</p>
+            {ort.kategorieName && <p className="text-xs text-muted-foreground">{ort.kategorieName}</p>}
+            {ort.fields.beschreibung && (
+              <p className="text-xs text-muted-foreground line-clamp-2">{ort.fields.beschreibung}</p>
+            )}
+            <div className="flex items-center gap-1.5 pt-0.5">
+              <StarRating value={ort.fields.bewertung?.key} />
+              {ort.fields.stadt && (
+                <span className="text-[10px] text-muted-foreground truncate">{ort.fields.stadt}</span>
+              )}
+            </div>
+          </div>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// Jahres-Ansicht
+function CalYearView({ currentDate, orteByDate, onMonthClick }: {
+  currentDate: Date;
+  orteByDate: Map<string, EnrichedOrte[]>;
+  onMonthClick: (date: Date) => void;
+}) {
+  const year = currentDate.getFullYear();
+  const months = Array.from({ length: 12 }, (_, i) => new Date(year, i, 1));
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+      {months.map(month => {
+        const mStart = startOfWeek(startOfMonth(month), { weekStartsOn: 1 });
+        const mEnd = endOfWeek(endOfMonth(month), { weekStartsOn: 1 });
+        const mDays = eachDayOfInterval({ start: mStart, end: mEnd });
+        const monthKey = format(month, 'yyyy-MM');
+        const monthCount = Array.from(orteByDate.entries())
+          .filter(([k]) => k.startsWith(monthKey))
+          .reduce((s, [, v]) => s + v.length, 0);
+        return (
+          <button
+            key={monthKey}
+            onClick={() => onMonthClick(month)}
+            className="text-left rounded-xl border border-border p-3 hover:border-primary/40 hover:shadow-sm transition-all bg-card"
+          >
+            <div className="flex items-center gap-2 mb-2">
+              <p className="text-xs font-semibold text-foreground capitalize flex-1 truncate">
+                {format(month, 'MMMM', { locale: de })}
+              </p>
+              {monthCount > 0 && (
+                <span className="text-[10px] bg-green-100 text-green-700 rounded-full px-1.5 py-0.5 font-medium shrink-0">{monthCount}</span>
+              )}
+            </div>
+            <div className="grid grid-cols-7 gap-px">
+              {['M','D','M','D','F','S','S'].map((d, i) => (
+                <div key={i} className="text-center text-[8px] text-muted-foreground/40">{d}</div>
+              ))}
+              {mDays.map(day => {
+                const dayKey = format(day, 'yyyy-MM-dd');
+                const hasOrte = orteByDate.has(dayKey);
+                const inMonth = isSameMonth(day, month);
+                const todayDay = isToday(day);
+                return (
+                  <div
+                    key={dayKey}
+                    className={`text-center text-[8px] py-0.5 rounded-sm leading-none ${
+                      !inMonth ? 'text-muted-foreground/15' :
+                      todayDay ? 'bg-primary text-primary-foreground font-bold' :
+                      hasOrte ? 'bg-green-100 text-green-700 font-semibold' :
+                      'text-muted-foreground'
+                    }`}
+                  >
+                    {format(day, 'd')}
+                  </div>
+                );
+              })}
+            </div>
+          </button>
+        );
+      })}
     </div>
   );
 }
