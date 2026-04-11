@@ -1,11 +1,13 @@
+import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
+import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
 import { useDashboardData } from '@/hooks/useDashboardData';
 import { enrichOrte } from '@/lib/enrich';
 import type { EnrichedOrte } from '@/types/enriched';
-import type { Orte } from '@/types/app';
-import { APP_IDS, LOOKUP_OPTIONS } from '@/types/app';
+import { APP_IDS } from '@/types/app';
 import { LivingAppsService, createRecordUrl } from '@/services/livingAppsService';
 import { formatDate } from '@/lib/formatters';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,19 +19,40 @@ import {
   IconAlertCircle, IconTool, IconRefresh, IconCheck,
   IconMapPin, IconPlus, IconPencil, IconTrash, IconSearch,
   IconStar, IconCheckbox, IconClock, IconCategory, IconPhone,
-  IconWorld, IconX,
+  IconWorld, IconX, IconMap, IconLayoutGrid,
 } from '@tabler/icons-react';
 
 const APPGROUP_ID = '69d19fd829983d49bc20a032';
 const REPAIR_ENDPOINT = '/claude/build/repair';
 
 const RATING_STARS: Record<string, number> = {
-  rating_1: 1,
-  rating_2: 2,
-  rating_3: 3,
-  rating_4: 4,
-  rating_5: 5,
+  rating_1: 1, rating_2: 2, rating_3: 3, rating_4: 4, rating_5: 5,
 };
+
+// Custom Leaflet-Marker (außerhalb Komponente für stabile Referenz)
+const visitedIcon = L.divIcon({
+  className: '',
+  html: `<div style="width:30px;height:30px;background:#22c55e;border:3px solid white;border-radius:50%;box-shadow:0 2px 10px rgba(0,0,0,0.3)"></div>`,
+  iconSize: [30, 30],
+  iconAnchor: [15, 15],
+  popupAnchor: [0, -18],
+});
+
+const unvisitedIcon = L.divIcon({
+  className: '',
+  html: `<div style="width:30px;height:30px;background:#f59e0b;border:3px solid white;border-radius:50%;box-shadow:0 2px 10px rgba(0,0,0,0.3)"></div>`,
+  iconSize: [30, 30],
+  iconAnchor: [15, 15],
+  popupAnchor: [0, -18],
+});
+
+const selectedMarkerIcon = L.divIcon({
+  className: '',
+  html: `<div style="width:38px;height:38px;background:#6366f1;border:3px solid white;border-radius:50%;box-shadow:0 0 0 6px rgba(99,102,241,0.25),0 4px 16px rgba(99,102,241,0.5)"></div>`,
+  iconSize: [38, 38],
+  iconAnchor: [19, 19],
+  popupAnchor: [0, -22],
+});
 
 function StarRating({ value }: { value: string | undefined }) {
   if (!value) return null;
@@ -56,7 +79,8 @@ export default function DashboardOverview() {
 
   const enrichedOrte = enrichOrte(orte, { kategorienMap });
 
-  // State — alle Hooks VOR early returns!
+  // Alle Hooks VOR early returns!
+  const [view, setView] = useState<'cards' | 'map'>('map');
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState<'all' | 'visited' | 'unvisited'>('all');
   const [selectedKategorie, setSelectedKategorie] = useState<string>('all');
@@ -88,6 +112,13 @@ export default function DashboardOverview() {
     const names = new Set(enrichedOrte.map(o => o.kategorieName).filter(Boolean));
     return Array.from(names).sort();
   }, [enrichedOrte]);
+
+  const mapPoints = useMemo(() =>
+    filtered
+      .filter(o => o.fields.standort)
+      .map(o => [o.fields.standort!.lat, o.fields.standort!.long] as [number, number]),
+    [filtered]
+  );
 
   if (loading) return <DashboardSkeleton />;
   if (error) return <DashboardError error={error} onRetry={fetchAll} />;
@@ -163,10 +194,38 @@ export default function DashboardOverview() {
             </button>
           ))}
         </div>
-        <Button onClick={handleCreate} size="sm" className="shrink-0">
-          <IconPlus size={16} className="mr-1 shrink-0" />
-          Ort hinzufügen
-        </Button>
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Ansicht-Umschalter */}
+          <div className="flex items-center bg-muted rounded-lg p-1">
+            <button
+              onClick={() => setView('cards')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                view === 'cards'
+                  ? 'bg-card text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <IconLayoutGrid size={15} className="shrink-0" />
+              <span className="hidden sm:inline">Karten</span>
+            </button>
+            <button
+              onClick={() => setView('map')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                view === 'map'
+                  ? 'bg-card text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <IconMap size={15} className="shrink-0" />
+              <span className="hidden sm:inline">Karte</span>
+            </button>
+          </div>
+          <Button onClick={handleCreate} size="sm">
+            <IconPlus size={16} className="mr-1 shrink-0" />
+            <span className="hidden sm:inline">Ort hinzufügen</span>
+            <span className="sm:hidden">Neu</span>
+          </Button>
+        </div>
       </div>
 
       {/* Filter & Suche */}
@@ -215,8 +274,15 @@ export default function DashboardOverview() {
         </div>
       </div>
 
-      {/* Ort-Karten */}
-      {filtered.length === 0 ? (
+      {/* Hauptinhalt: Karten oder Karte */}
+      {view === 'map' ? (
+        <MapView
+          orte={filtered}
+          mapPoints={mapPoints}
+          onEdit={handleEdit}
+          onDelete={ort => setDeleteTarget(ort)}
+        />
+      ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
           <IconMapPin size={48} className="text-muted-foreground" stroke={1.5} />
           <div>
@@ -286,6 +352,324 @@ export default function DashboardOverview() {
   );
 }
 
+// ─── Karten-Ansicht ──────────────────────────────────────────────────────────
+
+function MapView({
+  orte,
+  mapPoints,
+  onEdit,
+  onDelete,
+}: {
+  orte: EnrichedOrte[];
+  mapPoints: [number, number][];
+  onEdit: (ort: EnrichedOrte) => void;
+  onDelete: (ort: EnrichedOrte) => void;
+}) {
+  const [selected, setSelected] = useState<EnrichedOrte | null>(null);
+  const orteWithCoords = orte.filter(o => o.fields.standort);
+  const orteWithoutCoords = orte.length - orteWithCoords.length;
+  const visitedOnMap = orteWithCoords.filter(o => o.fields.bereits_besucht).length;
+  const unvisitedOnMap = orteWithCoords.filter(o => !o.fields.bereits_besucht).length;
+
+  const defaultCenter: [number, number] = orteWithCoords.length > 0
+    ? [orteWithCoords[0].fields.standort!.lat, orteWithCoords[0].fields.standort!.long]
+    : [51.1657, 10.4515];
+
+  const selectedAddress = selected
+    ? [selected.fields.strasse, selected.fields.hausnummer, selected.fields.postleitzahl, selected.fields.stadt, selected.fields.land].filter(Boolean).join(', ')
+    : '';
+
+  return (
+    <div className="space-y-3">
+      {orteWithoutCoords > 0 && (
+        <p className="text-xs text-muted-foreground bg-muted/50 rounded-lg px-3 py-2 flex items-center gap-1.5">
+          <IconMapPin size={13} className="shrink-0" />
+          {orteWithoutCoords} {orteWithoutCoords === 1 ? 'Ort hat' : 'Orte haben'} keine Koordinaten und {orteWithoutCoords === 1 ? 'wird' : 'werden'} nicht auf der Karte angezeigt.
+        </p>
+      )}
+
+      {orteWithCoords.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 gap-4 text-center border border-dashed border-border rounded-2xl">
+          <IconMap size={48} className="text-muted-foreground" stroke={1.5} />
+          <div>
+            <p className="font-medium text-foreground">Keine Standorte vorhanden</p>
+            <p className="text-sm text-muted-foreground mt-1 max-w-xs">
+              Füge Koordinaten zu deinen Orten hinzu (GPS-Feld beim Bearbeiten), um sie auf der Karte zu sehen.
+            </p>
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* Desktop: Karte + Side-Panel nebeneinander */}
+          <div
+            className="flex rounded-2xl overflow-hidden border border-border shadow-sm"
+            style={{ height: '72vh', minHeight: '500px' }}
+          >
+            {/* Karte */}
+            <div className="relative flex-1 min-w-0">
+              <MapContainer
+                center={defaultCenter}
+                zoom={10}
+                style={{ height: '100%', width: '100%' }}
+              >
+                <TileLayer
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+                  url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png"
+                />
+                <FitBounds points={mapPoints} />
+                {orteWithCoords.map(ort => (
+                  <Marker
+                    key={ort.record_id}
+                    position={[ort.fields.standort!.lat, ort.fields.standort!.long]}
+                    icon={
+                      selected?.record_id === ort.record_id
+                        ? selectedMarkerIcon
+                        : ort.fields.bereits_besucht ? visitedIcon : unvisitedIcon
+                    }
+                    eventHandlers={{ click: () => setSelected(ort) }}
+                  />
+                ))}
+              </MapContainer>
+
+              {/* Legende */}
+              <div className="absolute top-4 left-4 z-[1000] bg-white/95 backdrop-blur-sm border border-gray-200 rounded-xl px-3 py-2.5 shadow-md text-xs space-y-1.5 pointer-events-none">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-green-500 border-2 border-white shadow-sm shrink-0" />
+                  <span className="text-gray-700 font-medium">Besucht ({visitedOnMap})</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-amber-400 border-2 border-white shadow-sm shrink-0" />
+                  <span className="text-gray-700 font-medium">Geplant ({unvisitedOnMap})</span>
+                </div>
+                {!selected && (
+                  <p className="text-gray-400 pt-1 border-t border-gray-100">Marker anklicken</p>
+                )}
+              </div>
+            </div>
+
+            {/* Side-Panel (Desktop) */}
+            {selected && (
+              <div className="hidden sm:flex w-80 shrink-0 flex-col bg-card border-l border-border overflow-hidden">
+                {/* Hero-Foto */}
+                {selected.fields.fotos ? (
+                  <div className="h-48 shrink-0 overflow-hidden relative">
+                    <img
+                      src={selected.fields.fotos}
+                      alt={selected.fields.ort_name ?? ''}
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
+                    <div className="absolute bottom-3 left-4 right-10">
+                      <h3 className="font-bold text-white text-base leading-tight truncate drop-shadow">
+                        {selected.fields.ort_name ?? 'Unbenannter Ort'}
+                      </h3>
+                      {selected.kategorieName && (
+                        <span className="text-white/80 text-xs">{selected.kategorieName}</span>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => setSelected(null)}
+                      className="absolute top-2.5 right-2.5 bg-black/40 hover:bg-black/60 text-white rounded-full p-1.5 transition-colors"
+                    >
+                      <IconX size={14} />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="h-24 shrink-0 bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-between px-4">
+                    <div className="min-w-0">
+                      <h3 className="font-bold text-base text-foreground truncate">
+                        {selected.fields.ort_name ?? 'Unbenannter Ort'}
+                      </h3>
+                      {selected.kategorieName && (
+                        <span className="text-xs text-muted-foreground">{selected.kategorieName}</span>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => setSelected(null)}
+                      className="shrink-0 p-1.5 rounded-lg hover:bg-muted transition-colors"
+                    >
+                      <IconX size={16} />
+                    </button>
+                  </div>
+                )}
+
+                {/* Detail-Inhalt */}
+                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                  {/* Status + Bewertung */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${
+                      selected.fields.bereits_besucht
+                        ? 'bg-green-100 text-green-700'
+                        : 'bg-amber-100 text-amber-700'
+                    }`}>
+                      {selected.fields.bereits_besucht ? '✓ Besucht' : '○ Noch offen'}
+                    </span>
+                    {selected.fields.bewertung?.key && <StarRating value={selected.fields.bewertung.key} />}
+                    {selected.fields.bewertung?.label && (
+                      <span className="text-xs text-muted-foreground">{selected.fields.bewertung.label}</span>
+                    )}
+                  </div>
+
+                  {/* Beschreibung */}
+                  {selected.fields.beschreibung && (
+                    <p className="text-sm text-foreground leading-relaxed">{selected.fields.beschreibung}</p>
+                  )}
+
+                  {/* Infos */}
+                  <div className="space-y-2.5">
+                    {selectedAddress && (
+                      <div className="flex items-start gap-2.5 min-w-0">
+                        <IconMapPin size={14} className="text-muted-foreground shrink-0 mt-0.5" />
+                        <span className="text-sm text-foreground leading-snug">{selectedAddress}</span>
+                      </div>
+                    )}
+                    {selected.fields.telefon && (
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <IconPhone size={14} className="text-muted-foreground shrink-0" />
+                        <a href={`tel:${selected.fields.telefon}`} className="text-sm text-primary hover:underline truncate">
+                          {selected.fields.telefon}
+                        </a>
+                      </div>
+                    )}
+                    {selected.fields.website && (
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <IconWorld size={14} className="text-muted-foreground shrink-0" />
+                        <a href={selected.fields.website} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline truncate">
+                          {selected.fields.website.replace(/^https?:\/\//, '')}
+                        </a>
+                      </div>
+                    )}
+                    {selected.fields.oeffnungszeiten && (
+                      <div className="flex items-start gap-2.5 min-w-0">
+                        <IconClock size={14} className="text-muted-foreground shrink-0 mt-0.5" />
+                        <span className="text-sm text-foreground">{selected.fields.oeffnungszeiten}</span>
+                      </div>
+                    )}
+                    {selected.fields.besuchsdatum && (
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <IconCheckbox size={14} className="text-muted-foreground shrink-0" />
+                        <span className="text-sm text-foreground">Besucht am {formatDate(selected.fields.besuchsdatum)}</span>
+                      </div>
+                    )}
+                    {selected.fields.standort && (
+                      <a
+                        href={`https://www.google.com/maps?q=${selected.fields.standort.lat},${selected.fields.standort.long}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2.5 text-sm text-primary hover:underline"
+                      >
+                        <IconMap size={14} className="shrink-0" />
+                        Auf Google Maps öffnen
+                      </a>
+                    )}
+                  </div>
+
+                  {/* Persönliche Notizen */}
+                  {selected.fields.notizen_nach_besuch && (
+                    <div className="bg-muted/60 rounded-xl p-3 border border-border/50">
+                      <p className="text-xs font-semibold text-muted-foreground mb-1.5 uppercase tracking-wide">Notizen</p>
+                      <p className="text-sm text-foreground leading-relaxed">{selected.fields.notizen_nach_besuch}</p>
+                    </div>
+                  )}
+
+                  {/* Aktionen */}
+                  <div className="flex gap-2 pt-1">
+                    <Button onClick={() => onEdit(selected)} className="flex-1" size="sm">
+                      <IconPencil size={14} className="mr-1.5 shrink-0" />
+                      Bearbeiten
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => { onDelete(selected); setSelected(null); }}
+                      className="text-destructive hover:text-destructive border-destructive/30 hover:border-destructive"
+                    >
+                      <IconTrash size={14} className="shrink-0" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Mobile Detail-Panel (unterhalb der Karte) */}
+          {selected && (
+            <div className="sm:hidden bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
+              {selected.fields.fotos && (
+                <div className="h-40 overflow-hidden relative">
+                  <img src={selected.fields.fotos} alt={selected.fields.ort_name ?? ''} className="w-full h-full object-cover" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+                </div>
+              )}
+              <div className="p-4 space-y-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <h3 className="font-bold text-base leading-tight text-foreground truncate">
+                      {selected.fields.ort_name ?? 'Unbenannter Ort'}
+                    </h3>
+                    {selected.kategorieName && (
+                      <span className="text-xs text-muted-foreground">{selected.kategorieName}</span>
+                    )}
+                  </div>
+                  <button onClick={() => setSelected(null)} className="shrink-0 p-1.5 rounded-lg hover:bg-muted transition-colors">
+                    <IconX size={15} />
+                  </button>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
+                    selected.fields.bereits_besucht ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
+                  }`}>
+                    {selected.fields.bereits_besucht ? '✓ Besucht' : '○ Noch offen'}
+                  </span>
+                  {selected.fields.bewertung?.key && <StarRating value={selected.fields.bewertung.key} />}
+                </div>
+                {selected.fields.beschreibung && (
+                  <p className="text-sm text-muted-foreground line-clamp-2">{selected.fields.beschreibung}</p>
+                )}
+                {selectedAddress && (
+                  <div className="flex items-start gap-2 min-w-0">
+                    <IconMapPin size={13} className="text-muted-foreground shrink-0 mt-0.5" />
+                    <span className="text-xs text-muted-foreground">{selectedAddress}</span>
+                  </div>
+                )}
+                <div className="flex gap-2 pt-1">
+                  <Button onClick={() => onEdit(selected)} className="flex-1" size="sm">
+                    <IconPencil size={14} className="mr-1 shrink-0" />
+                    Bearbeiten
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => { onDelete(selected); setSelected(null); }}
+                    className="text-destructive hover:text-destructive"
+                  >
+                    <IconTrash size={14} />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function FitBounds({ points }: { points: [number, number][] }) {
+  const map = useMap();
+  useEffect(() => {
+    if (!points.length) return;
+    if (points.length === 1) {
+      map.setView(points[0], 14);
+      return;
+    }
+    map.fitBounds(L.latLngBounds(points), { padding: [60, 60] });
+  }, [map, points]);
+  return null;
+}
+
+// ─── Ort-Karte ───────────────────────────────────────────────────────────────
+
 function OrtCard({
   ort,
   onEdit,
@@ -320,7 +704,6 @@ function OrtCard({
 
       {/* Inhalt */}
       <div className="p-4 flex flex-col flex-1 gap-3">
-        {/* Header */}
         <div className="flex items-start gap-2 min-w-0">
           <div className="flex-1 min-w-0">
             <button
@@ -344,12 +727,8 @@ function OrtCard({
           </span>
         </div>
 
-        {/* Bewertung */}
-        {rating && (
-          <StarRating value={rating} />
-        )}
+        {rating && <StarRating value={rating} />}
 
-        {/* Adresse */}
         {address && (
           <div className="flex items-center gap-1.5 min-w-0">
             <IconMapPin size={13} className="text-muted-foreground shrink-0" />
@@ -357,7 +736,6 @@ function OrtCard({
           </div>
         )}
 
-        {/* Besuchsdatum */}
         {ort.fields.besuchsdatum && (
           <div className="flex items-center gap-1.5 min-w-0">
             <IconCheckbox size={13} className="text-muted-foreground shrink-0" />
@@ -367,12 +745,10 @@ function OrtCard({
           </div>
         )}
 
-        {/* Beschreibung */}
         {ort.fields.beschreibung && (
           <p className="text-xs text-muted-foreground line-clamp-2">{ort.fields.beschreibung}</p>
         )}
 
-        {/* Aktionen */}
         <div className="flex gap-2 mt-auto pt-1">
           <Button variant="outline" size="sm" onClick={onEdit} className="flex-1">
             <IconPencil size={14} className="mr-1 shrink-0" />
@@ -386,6 +762,8 @@ function OrtCard({
     </div>
   );
 }
+
+// ─── Ort-Detailpanel ─────────────────────────────────────────────────────────
 
 function OrtDetailPanel({
   ort,
@@ -408,7 +786,6 @@ function OrtDetailPanel({
         className="relative bg-card border border-border rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-xl"
         onClick={e => e.stopPropagation()}
       >
-        {/* Foto */}
         {ort.fields.fotos && (
           <div className="h-52 overflow-hidden rounded-t-2xl">
             <img src={ort.fields.fotos} alt={ort.fields.ort_name ?? ''} className="w-full h-full object-cover" />
@@ -416,7 +793,6 @@ function OrtDetailPanel({
         )}
 
         <div className="p-6 space-y-4">
-          {/* Titel */}
           <div className="flex items-start gap-3 justify-between">
             <div className="min-w-0">
               <h2 className="text-xl font-bold text-foreground truncate">{ort.fields.ort_name ?? 'Unbenannter Ort'}</h2>
@@ -429,7 +805,6 @@ function OrtDetailPanel({
             </button>
           </div>
 
-          {/* Status + Bewertung */}
           <div className="flex flex-wrap items-center gap-3">
             <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
               ort.fields.bereits_besucht
@@ -444,12 +819,10 @@ function OrtDetailPanel({
             )}
           </div>
 
-          {/* Beschreibung */}
           {ort.fields.beschreibung && (
             <p className="text-sm text-foreground leading-relaxed">{ort.fields.beschreibung}</p>
           )}
 
-          {/* Details */}
           <div className="space-y-2">
             {address && (
               <div className="flex items-start gap-2 min-w-0">
@@ -487,7 +860,6 @@ function OrtDetailPanel({
             )}
           </div>
 
-          {/* Notizen */}
           {ort.fields.notizen_nach_besuch && (
             <div className="bg-muted/50 rounded-xl p-3">
               <p className="text-xs font-medium text-muted-foreground mb-1">Persönliche Notizen</p>
@@ -495,7 +867,6 @@ function OrtDetailPanel({
             </div>
           )}
 
-          {/* Karte Link */}
           {ort.fields.standort && (
             <a
               href={`https://www.google.com/maps?q=${ort.fields.standort.lat},${ort.fields.standort.long}`}
@@ -508,7 +879,6 @@ function OrtDetailPanel({
             </a>
           )}
 
-          {/* Aktionen */}
           <div className="flex gap-2 pt-2">
             <Button onClick={onEdit} className="flex-1">
               <IconPencil size={15} className="mr-1.5 shrink-0" />
@@ -524,6 +894,8 @@ function OrtDetailPanel({
     </div>
   );
 }
+
+// ─── Skeleton & Fehler ───────────────────────────────────────────────────────
 
 function DashboardSkeleton() {
   return (
@@ -642,7 +1014,7 @@ function DashboardError({ error, onRetry }: { error: Error; onRetry: () => void 
           {repairing ? 'Reparatur läuft...' : 'Dashboard reparieren'}
         </Button>
       </div>
-      {repairFailed && <p className="text-sm text-destructive">Automatische Reparatur fehlgeschlagen. Bitte kontaktieren Sie den Support.</p>}
+      {repairFailed && <p className="text-sm text-destructive">Automatische Reparatur fehlgeschlagen. Bitte kontaktiere den Support.</p>}
     </div>
   );
 }
