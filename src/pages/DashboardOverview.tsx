@@ -87,7 +87,7 @@ export default function DashboardOverview() {
   const enrichedOrte = enrichOrte(orte, { kategorienMap });
 
   // Alle Hooks VOR early returns!
-  const [view, setView] = useState<'cards' | 'map'>('map');
+  const [view, setView] = useState<'cards' | 'map' | 'calendar'>('map');
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState<'all' | 'visited' | 'unvisited'>('all');
   const [selectedKategorie, setSelectedKategorie] = useState<string>('all');
@@ -259,6 +259,17 @@ export default function DashboardOverview() {
               <IconMap size={15} className="shrink-0" />
               <span className="hidden sm:inline">Karte</span>
             </button>
+            <button
+              onClick={() => setView('calendar')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                view === 'calendar'
+                  ? 'bg-card text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <IconCalendar size={15} className="shrink-0" />
+              <span className="hidden sm:inline">Kalender</span>
+            </button>
           </div>
           <Button onClick={handleCreate} size="sm">
             <IconPlus size={16} className="mr-1 shrink-0" />
@@ -314,8 +325,13 @@ export default function DashboardOverview() {
         </div>
       </div>
 
-      {/* Hauptinhalt: Karten oder Karte */}
-      {view === 'map' ? (
+      {/* Hauptinhalt: Karten, Karte oder Kalender */}
+      {view === 'calendar' ? (
+        <OrtCalendar
+          orte={enrichedOrte}
+          onDetail={setDetailOrt}
+        />
+      ) : view === 'map' ? (
         <MapView
           orte={filtered}
           mapPoints={mapPoints}
@@ -364,12 +380,6 @@ export default function DashboardOverview() {
           onDelete={() => { setDeleteTarget(detailOrt); setDetailOrt(null); }}
         />
       )}
-
-      {/* Besuchskalender */}
-      <OrtCalendar
-        orte={enrichedOrte}
-        onDetail={setDetailOrt}
-      />
 
       {/* Dialog */}
       <OrteDialog
