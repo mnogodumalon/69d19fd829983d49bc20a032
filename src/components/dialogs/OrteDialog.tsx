@@ -15,7 +15,7 @@ import {
   SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { IconCamera, IconChevronDown, IconCircleCheck, IconCrosshair, IconFileText, IconLoader2, IconPhotoPlus, IconSparkles, IconUpload, IconX } from '@tabler/icons-react';
+import { IconCamera, IconChevronDown, IconCircleCheck, IconCrosshair, IconFileText, IconLoader2, IconPhotoPlus, IconSparkles, IconStar, IconUpload, IconX } from '@tabler/icons-react';
 import { fileToDataUri, extractFromPhoto, extractPhotoMeta, reverseGeocode, dataUriToBlob } from '@/lib/ai';
 import { GeoMapPicker } from '@/components/GeoMapPicker';
 import { lookupKey } from '@/lib/formatters';
@@ -572,21 +572,63 @@ export function OrteDialog({ open, onClose, onSubmit, defaultValues, kategorienL
             )}
           </div>
           <div className="space-y-2">
-            <Label htmlFor="bewertung">Bewertung</Label>
-            <Select
-              value={lookupKey(fields.bewertung) ?? 'none'}
-              onValueChange={v => setFields(f => ({ ...f, bewertung: v === 'none' ? undefined : v as any }))}
-            >
-              <SelectTrigger id="bewertung"><SelectValue placeholder="Auswählen..." /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">—</SelectItem>
-                <SelectItem value="rating_1">⭐ 1 – Weniger beeindruckend</SelectItem>
-                <SelectItem value="rating_2">⭐⭐ 2 – Ganz okay</SelectItem>
-                <SelectItem value="rating_3">⭐⭐⭐ 3 – Gut</SelectItem>
-                <SelectItem value="rating_4">⭐⭐⭐⭐ 4 – Sehr gut</SelectItem>
-                <SelectItem value="rating_5">⭐⭐⭐⭐⭐ 5 – Absolut empfehlenswert</SelectItem>
-              </SelectContent>
-            </Select>
+            <Label>Bewertung</Label>
+            <div className="space-y-2">
+              {[
+                { key: 'rating_1', label: 'Weniger beeindruckend' },
+                { key: 'rating_2', label: 'Ganz okay' },
+                { key: 'rating_3', label: 'Gut' },
+                { key: 'rating_4', label: 'Sehr gut' },
+                { key: 'rating_5', label: 'Absolut empfehlenswert' },
+              ].map((opt, idx) => {
+                const stars = idx + 1;
+                const current = lookupKey(fields.bewertung);
+                const checked = current === opt.key;
+                return (
+                  <label
+                    key={opt.key}
+                    className={`flex items-center gap-3 px-3 py-2 rounded-lg border cursor-pointer transition-colors ${
+                      checked
+                        ? 'border-primary bg-primary/5'
+                        : 'border-border hover:bg-muted/50'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="bewertung"
+                      value={opt.key}
+                      checked={checked}
+                      onChange={() => setFields(f => ({ ...f, bewertung: opt.key as any }))}
+                      className="sr-only"
+                    />
+                    <div className="flex gap-0.5 shrink-0">
+                      {[1, 2, 3, 4, 5].map(i => (
+                        <IconStar
+                          key={i}
+                          size={16}
+                          className={i <= stars ? 'text-amber-400 fill-amber-400' : 'text-muted-foreground/25'}
+                        />
+                      ))}
+                    </div>
+                    <span className="text-sm text-foreground">{opt.label}</span>
+                    <div className={`ml-auto w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center ${
+                      checked ? 'border-primary bg-primary' : 'border-muted-foreground/40'
+                    }`}>
+                      {checked && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                    </div>
+                  </label>
+                );
+              })}
+              {lookupKey(fields.bewertung) && (
+                <button
+                  type="button"
+                  onClick={() => setFields(f => ({ ...f, bewertung: undefined }))}
+                  className="text-xs text-muted-foreground hover:text-foreground underline mt-1"
+                >
+                  Bewertung entfernen
+                </button>
+              )}
+            </div>
           </div>
           <div className="space-y-2">
             <Label htmlFor="bereits_besucht">Bereits besucht</Label>
