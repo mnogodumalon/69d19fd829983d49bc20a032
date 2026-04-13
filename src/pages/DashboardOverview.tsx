@@ -96,6 +96,9 @@ export default function DashboardOverview() {
   const [deleteTarget, setDeleteTarget] = useState<EnrichedOrte | null>(null);
   const [detailOrt, setDetailOrt] = useState<EnrichedOrte | null>(null);
   const [highlightMapId, setHighlightMapId] = useState<string | null>(null);
+  const [page, setPage] = useState(0);
+
+  const PAGE_SIZE = 3;
 
   const filtered = useMemo(() => {
     let result = enrichedOrte;
@@ -113,6 +116,22 @@ export default function DashboardOverview() {
     }
     return result;
   }, [enrichedOrte, activeTab, selectedKategorie, search]);
+
+  const sortedFiltered = useMemo(() => {
+    return [...filtered].sort((a, b) => {
+      const da = a.fields.besuchsdatum;
+      const db = b.fields.besuchsdatum;
+      if (!da && !db) return 0;
+      if (!da) return -1;
+      if (!db) return 1;
+      return da < db ? -1 : da > db ? 1 : 0;
+    });
+  }, [filtered]);
+
+  const totalPages = Math.ceil(sortedFiltered.length / PAGE_SIZE);
+  const pagedOrte = useMemo(() => sortedFiltered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE), [sortedFiltered, page]);
+
+  useEffect(() => { setPage(0); }, [activeTab, selectedKategorie, search]);
 
   const visitedCount = useMemo(() => orte.filter(o => o.fields.bereits_besucht).length, [orte]);
   const unvisitedCount = useMemo(() => orte.filter(o => !o.fields.bereits_besucht).length, [orte]);
@@ -339,7 +358,7 @@ export default function DashboardOverview() {
           onDelete={ort => setDeleteTarget(ort)}
           highlightId={highlightMapId ?? undefined}
         />
-      ) : filtered.length === 0 ? (
+      ) : sortedFiltered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
           <IconMapPin size={48} className="text-muted-foreground" stroke={1.5} />
           <div>
@@ -356,18 +375,43 @@ export default function DashboardOverview() {
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filtered.map(ort => (
-            <OrtCard
-              key={ort.record_id}
-              ort={ort}
-              onEdit={() => handleEdit(ort)}
-              onDelete={() => setDeleteTarget(ort)}
-              onDetail={() => setDetailOrt(ort)}
-              onToggleVisited={() => handleToggleVisited(ort)}
-              onShowOnMap={ort.fields.standort ? () => handleShowOnMap(ort) : undefined}
-            />
-          ))}
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {pagedOrte.map(ort => (
+              <OrtCard
+                key={ort.record_id}
+                ort={ort}
+                onEdit={() => handleEdit(ort)}
+                onDelete={() => setDeleteTarget(ort)}
+                onDetail={() => setDetailOrt(ort)}
+                onToggleVisited={() => handleToggleVisited(ort)}
+                onShowOnMap={ort.fields.standort ? () => handleShowOnMap(ort) : undefined}
+              />
+            ))}
+          </div>
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 pt-2">
+              <button
+                onClick={() => setPage(p => Math.max(0, p - 1))}
+                disabled={page === 0}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-muted text-muted-foreground hover:bg-muted/80"
+              >
+                <IconChevronLeft size={15} className="shrink-0" />
+                Zurück
+              </button>
+              <span className="text-sm text-muted-foreground px-2">
+                Seite {page + 1} von {totalPages}
+              </span>
+              <button
+                onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+                disabled={page >= totalPages - 1}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-muted text-muted-foreground hover:bg-muted/80"
+              >
+                Weiter
+                <IconChevronRight size={15} className="shrink-0" />
+              </button>
+            </div>
+          )}
         </div>
       )}
 
