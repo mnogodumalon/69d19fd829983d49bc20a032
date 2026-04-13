@@ -643,12 +643,28 @@ export function OrteDialog({ open, onClose, onSubmit, defaultValues, kategorienL
           </div>
           <div className="space-y-2">
             <Label htmlFor="besuchsdatum">Besuchsdatum</Label>
-            <Input
-              id="besuchsdatum"
-              type="date"
-              value={fields.besuchsdatum ?? ''}
-              onChange={e => setFields(f => ({ ...f, besuchsdatum: e.target.value }))}
-            />
+            <div className="flex gap-2">
+              <Input
+                id="besuchsdatum"
+                type="date"
+                value={fields.besuchsdatum ?? ''}
+                onChange={e => setFields(f => ({ ...f, besuchsdatum: e.target.value }))}
+                className="flex-1"
+              />
+              {fields.besuchsdatum && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setFields(f => ({ ...f, besuchsdatum: undefined }))}
+                  className="shrink-0 px-2.5"
+                  title="Datum löschen"
+                >
+                  <IconX size={15} className="shrink-0" />
+                  <span className="ml-1 text-xs">Zurücksetzen</span>
+                </Button>
+              )}
+            </div>
           </div>
           <div className="space-y-2">
             <Label htmlFor="notizen_nach_besuch">Persönliche Notizen nach dem Besuch</Label>
