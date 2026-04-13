@@ -598,7 +598,7 @@ export function OrteDialog({ open, onClose, onSubmit, defaultValues, kategorienL
                       name="bewertung"
                       value={opt.key}
                       checked={checked}
-                      onChange={() => setFields(f => ({ ...f, bewertung: opt.key as any }))}
+                      onChange={() => setFields(f => ({ ...f, bewertung: { key: opt.key, label: opt.label } as any }))}
                       className="sr-only"
                     />
                     <div className="flex gap-0.5 shrink-0">
