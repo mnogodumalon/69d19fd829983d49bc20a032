@@ -461,7 +461,7 @@ function MapView({
           {/* Desktop: Karte + Side-Panel nebeneinander */}
           <div
             className="flex rounded-2xl overflow-hidden border border-border shadow-sm"
-            style={{ height: '72vh', minHeight: '500px' }}
+            style={{ height: '72vh', minHeight: '500px', isolation: 'isolate' }}
           >
             {/* Karte */}
             <div className="relative flex-1 min-w-0">
