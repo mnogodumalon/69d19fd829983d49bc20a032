@@ -6,6 +6,8 @@ import DashboardOverview from '@/pages/DashboardOverview';
 import AdminPage from '@/pages/AdminPage';
 import KategorienPage from '@/pages/KategorienPage';
 import OrtePage from '@/pages/OrtePage';
+// <custom:imports>
+// </custom:imports>
 
 export default function App() {
   return (
@@ -18,6 +20,8 @@ export default function App() {
               <Route path="kategorien" element={<KategorienPage />} />
               <Route path="orte" element={<OrtePage />} />
               <Route path="admin" element={<AdminPage />} />
+              {/* <custom:routes> */}
+              {/* </custom:routes> */}
             </Route>
           </Routes>
         </ActionsProvider>

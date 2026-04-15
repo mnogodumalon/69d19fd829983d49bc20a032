@@ -15,8 +15,8 @@ import {
   SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { IconCamera, IconChevronDown, IconCircleCheck, IconCrosshair, IconFileText, IconLoader2, IconPhotoPlus, IconSparkles, IconStar, IconUpload, IconX } from '@tabler/icons-react';
-import { fileToDataUri, extractFromPhoto, extractPhotoMeta, reverseGeocode, dataUriToBlob } from '@/lib/ai';
+import { IconArrowBigDownLinesFilled, IconCamera, IconChevronDown, IconCircleCheck, IconClipboard, IconCrosshair, IconFileText, IconLoader2, IconPhotoPlus, IconSparkles, IconUpload, IconX } from '@tabler/icons-react';
+import { fileToDataUri, extractFromInput, extractPhotoMeta, reverseGeocode, dataUriToBlob } from '@/lib/ai';
 import { GeoMapPicker } from '@/components/GeoMapPicker';
 import { lookupKey } from '@/lib/formatters';
 
@@ -45,12 +45,14 @@ export function OrteDialog({ open, onClose, onSubmit, defaultValues, kategorienL
   const [showProfileInfo, setShowProfileInfo] = useState(false);
   const [profileData, setProfileData] = useState<Record<string, unknown> | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
+  const [aiText, setAiText] = useState('');
 
   useEffect(() => {
     if (open) {
       setFields(defaultValues ?? {});
       setPreview(null);
       setScanSuccess(false);
+      setAiText('');
       setGeoFromPhoto(false);
     }
   }, [open, defaultValues]);
@@ -112,22 +114,28 @@ export function OrteDialog({ open, onClose, onSubmit, defaultValues, kategorienL
     }, 600);
   }
 
-  async function handlePhotoScan(file: File) {
+  async function handleAiExtract(file?: File) {
+    if (!file && !aiText.trim()) return;
     setScanning(true);
     setScanSuccess(false);
     try {
-      const [uri, meta] = await Promise.all([fileToDataUri(file), extractPhotoMeta(file)]);
-      if (file.type.startsWith('image/')) setPreview(uri);
-      const gps = enablePhotoLocation ? meta?.gps ?? null : null;
-      const parts: string[] = [];
+      let uri: string | undefined;
+      let gps: { latitude: number; longitude: number } | null = null;
       let geoAddr = '';
-      if (gps) {
-        geoAddr = await reverseGeocode(gps.latitude, gps.longitude);
-        parts.push(`Location coordinates: ${gps.latitude}, ${gps.longitude}`);
-        if (geoAddr) parts.push(`Reverse-geocoded address: ${geoAddr}`);
-      }
-      if (meta?.dateTime) {
-        parts.push(`Date taken: ${meta.dateTime.replace(/^(\d{4}):(\d{2}):(\d{2})/, '$1-$2-$3')}`);
+      const parts: string[] = [];
+      if (file) {
+        const [dataUri, meta] = await Promise.all([fileToDataUri(file), extractPhotoMeta(file)]);
+        uri = dataUri;
+        if (file.type.startsWith('image/')) setPreview(uri);
+        gps = enablePhotoLocation ? meta?.gps ?? null : null;
+        if (gps) {
+          geoAddr = await reverseGeocode(gps.latitude, gps.longitude);
+          parts.push(`Location coordinates: ${gps.latitude}, ${gps.longitude}`);
+          if (geoAddr) parts.push(`Reverse-geocoded address: ${geoAddr}`);
+        }
+        if (meta?.dateTime) {
+          parts.push(`Date taken: ${meta.dateTime.replace(/^(\d{4}):(\d{2}):(\d{2})/, '$1-$2-$3')}`);
+        }
       }
       const contextParts: string[] = [];
       if (parts.length) {
@@ -144,7 +152,12 @@ export function OrteDialog({ open, onClose, onSubmit, defaultValues, kategorienL
       }
       const photoContext = contextParts.length ? contextParts.join('\n') : undefined;
       const schema = `{\n  "ort_name": string | null, // Name des Ortes\n  "kategorie": string | null, // Display name from Kategorien (see <available-records>)\n  "strasse": string | null, // Straße\n  "hausnummer": string | null, // Hausnummer\n  "postleitzahl": string | null, // Postleitzahl\n  "stadt": string | null, // Stadt\n  "land": string | null, // Land\n  "website": string | null, // Website\n  "telefon": string | null, // Telefonnummer\n  "oeffnungszeiten": string | null, // Öffnungszeiten\n  "beschreibung": string | null, // Beschreibung / Warum interessant?\n  "bewertung": LookupValue | null, // Bewertung (select one key: "rating_1" | "rating_2" | "rating_3" | "rating_4" | "rating_5") mapping: rating_1=⭐ 1 – Weniger beeindruckend, rating_2=⭐⭐ 2 – Ganz okay, rating_3=⭐⭐⭐ 3 – Gut, rating_4=⭐⭐⭐⭐ 4 – Sehr gut, rating_5=⭐⭐⭐⭐⭐ 5 – Absolut empfehlenswert\n  "bereits_besucht": boolean | null, // Bereits besucht\n  "besuchsdatum": string | null, // YYYY-MM-DD\n  "notizen_nach_besuch": string | null, // Persönliche Notizen nach dem Besuch\n}`;
-      const raw = await extractFromPhoto<Record<string, unknown>>(uri, schema, photoContext, DIALOG_INTENT);
+      const raw = await extractFromInput<Record<string, unknown>>(schema, {
+        dataUri: uri,
+        userText: aiText.trim() || undefined,
+        photoContext,
+        intent: DIALOG_INTENT,
+      });
       setFields(prev => {
         const merged = { ...prev } as Record<string, unknown>;
         function matchName(name: string, candidates: string[]): boolean {
@@ -164,9 +177,9 @@ export function OrteDialog({ open, onClose, onSubmit, defaultValues, kategorienL
         return merged as Partial<Orte['fields']>;
       });
       // Upload scanned file to file fields
-      if (file.type.startsWith('image/') || file.type === 'application/pdf') {
+      if (file && (file.type.startsWith('image/') || file.type === 'application/pdf')) {
         try {
-          const blob = dataUriToBlob(uri);
+          const blob = dataUriToBlob(uri!);
           const fileUrl = await uploadFile(blob, file.name);
           setFields(prev => ({ ...prev, fotos: fileUrl }));
         } catch (uploadErr) {
@@ -177,6 +190,7 @@ export function OrteDialog({ open, onClose, onSubmit, defaultValues, kategorienL
         setFields(f => ({ ...f, standort: { lat: gps.latitude, long: gps.longitude, info: geoAddr } as any }));
         setGeoFromPhoto(true);
       }
+      setAiText('');
       setScanSuccess(true);
       setTimeout(() => setScanSuccess(false), 3000);
     } catch (err) {
@@ -189,7 +203,7 @@ export function OrteDialog({ open, onClose, onSubmit, defaultValues, kategorienL
 
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
-    if (f) handlePhotoScan(f);
+    if (f) handleAiExtract(f);
     e.target.value = '';
   }
 
@@ -211,7 +225,7 @@ export function OrteDialog({ open, onClose, onSubmit, defaultValues, kategorienL
     setDragOver(false);
     const file = e.dataTransfer.files?.[0];
     if (file && (file.type.startsWith('image/') || file.type === 'application/pdf')) {
-      handlePhotoScan(file);
+      handleAiExtract(file);
     }
   }, []);
 
@@ -231,7 +245,7 @@ export function OrteDialog({ open, onClose, onSubmit, defaultValues, kategorienL
                 <IconSparkles className="h-4 w-4 text-primary" />
                 KI-Assistent
               </div>
-              <p className="text-xs text-muted-foreground mt-0.5">Versteht deine Fotos / Dokumente und füllt alles für dich aus</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Versteht Fotos, Dokumente und Text und füllt alles für dich aus</p>
             </div>
             <div className="flex items-start gap-2 pl-0.5">
               <Checkbox
@@ -328,16 +342,16 @@ export function OrteDialog({ open, onClose, onSubmit, defaultValues, kategorienL
               )}
             </div>
 
-            <div className="flex gap-2">
-              <Button type="button" variant="outline" size="sm" className="flex-1 h-9 text-xs" disabled={scanning}
+            <div className="grid grid-cols-3 gap-2">
+              <Button type="button" variant="outline" size="sm" className="h-10 text-xs" disabled={scanning}
                 onClick={e => { e.stopPropagation(); cameraInputRef.current?.click(); }}>
-                <IconCamera className="h-3.5 w-3.5 mr-1.5" />Kamera
+                <IconCamera className="h-3.5 w-3.5 mr-1" />Kamera
               </Button>
-              <Button type="button" variant="outline" size="sm" className="flex-1 h-9 text-xs" disabled={scanning}
+              <Button type="button" variant="outline" size="sm" className="h-10 text-xs" disabled={scanning}
                 onClick={e => { e.stopPropagation(); fileInputRef.current?.click(); }}>
-                <IconUpload className="h-3.5 w-3.5 mr-1.5" />Foto wählen
+                <IconUpload className="h-3.5 w-3.5 mr-1" />Foto wählen
               </Button>
-              <Button type="button" variant="outline" size="sm" className="flex-1 h-9 text-xs" disabled={scanning}
+              <Button type="button" variant="outline" size="sm" className="h-10 text-xs" disabled={scanning}
                 onClick={e => {
                   e.stopPropagation();
                   if (fileInputRef.current) {
@@ -346,8 +360,59 @@ export function OrteDialog({ open, onClose, onSubmit, defaultValues, kategorienL
                     setTimeout(() => { if (fileInputRef.current) fileInputRef.current.accept = 'image/*,application/pdf'; }, 100);
                   }
                 }}>
-                <IconFileText className="h-3.5 w-3.5 mr-1.5" />Dokument
+                <IconFileText className="h-3.5 w-3.5 mr-1" />Dokument
               </Button>
+            </div>
+
+            <div className="relative">
+              <Textarea
+                placeholder="Text eingeben oder einfügen, z.B. Notizen, E-Mails, Beschreibungen..."
+                value={aiText}
+                onChange={e => {
+                  setAiText(e.target.value);
+                  const el = e.target;
+                  el.style.height = 'auto';
+                  el.style.height = Math.min(Math.max(el.scrollHeight, 56), 96) + 'px';
+                }}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && aiText.trim() && !scanning) {
+                    e.preventDefault();
+                    handleAiExtract();
+                  }
+                }}
+                disabled={scanning}
+                rows={2}
+                className="pr-12 resize-none text-sm overflow-y-auto"
+              />
+              <button
+                type="button"
+                className="absolute right-2 top-2 h-8 w-8 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                disabled={scanning}
+                onClick={async () => {
+                  try {
+                    const text = await navigator.clipboard.readText();
+                    if (text) setAiText(prev => prev ? prev + '\n' + text : text);
+                  } catch {}
+                }}
+                title="Paste"
+              >
+                <IconClipboard className="h-4 w-4" />
+              </button>
+            </div>
+            {aiText.trim() && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-full h-9 text-xs"
+                disabled={scanning}
+                onClick={() => handleAiExtract()}
+              >
+                <IconSparkles className="h-3.5 w-3.5 mr-1.5" />Analysieren
+              </Button>
+            )}
+            <div className="flex justify-center pt-1">
+              <IconArrowBigDownLinesFilled className="h-8 w-8 text-muted-foreground/30" />
             </div>
           </div>
         )}
@@ -572,63 +637,21 @@ export function OrteDialog({ open, onClose, onSubmit, defaultValues, kategorienL
             )}
           </div>
           <div className="space-y-2">
-            <Label>Bewertung</Label>
-            <div className="space-y-2">
-              {[
-                { key: 'rating_1', label: 'Weniger beeindruckend' },
-                { key: 'rating_2', label: 'Ganz okay' },
-                { key: 'rating_3', label: 'Gut' },
-                { key: 'rating_4', label: 'Sehr gut' },
-                { key: 'rating_5', label: 'Absolut empfehlenswert' },
-              ].map((opt, idx) => {
-                const stars = idx + 1;
-                const current = lookupKey(fields.bewertung);
-                const checked = current === opt.key;
-                return (
-                  <label
-                    key={opt.key}
-                    className={`flex items-center gap-3 px-3 py-2 rounded-lg border cursor-pointer transition-colors ${
-                      checked
-                        ? 'border-primary bg-primary/5'
-                        : 'border-border hover:bg-muted/50'
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="bewertung"
-                      value={opt.key}
-                      checked={checked}
-                      onChange={() => setFields(f => ({ ...f, bewertung: { key: opt.key, label: opt.label } as any }))}
-                      className="sr-only"
-                    />
-                    <div className="flex gap-0.5 shrink-0">
-                      {[1, 2, 3, 4, 5].map(i => (
-                        <IconStar
-                          key={i}
-                          size={16}
-                          className={i <= stars ? 'text-amber-400 fill-amber-400' : 'text-muted-foreground/25'}
-                        />
-                      ))}
-                    </div>
-                    <span className="text-sm text-foreground">{opt.label}</span>
-                    <div className={`ml-auto w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center ${
-                      checked ? 'border-primary bg-primary' : 'border-muted-foreground/40'
-                    }`}>
-                      {checked && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
-                    </div>
-                  </label>
-                );
-              })}
-              {lookupKey(fields.bewertung) && (
-                <button
-                  type="button"
-                  onClick={() => setFields(f => ({ ...f, bewertung: undefined }))}
-                  className="text-xs text-muted-foreground hover:text-foreground underline mt-1"
-                >
-                  Bewertung entfernen
-                </button>
-              )}
-            </div>
+            <Label htmlFor="bewertung">Bewertung</Label>
+            <Select
+              value={lookupKey(fields.bewertung) ?? 'none'}
+              onValueChange={v => setFields(f => ({ ...f, bewertung: v === 'none' ? undefined : v as any }))}
+            >
+              <SelectTrigger id="bewertung"><SelectValue placeholder="Auswählen..." /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">—</SelectItem>
+                <SelectItem value="rating_1">⭐ 1 – Weniger beeindruckend</SelectItem>
+                <SelectItem value="rating_2">⭐⭐ 2 – Ganz okay</SelectItem>
+                <SelectItem value="rating_3">⭐⭐⭐ 3 – Gut</SelectItem>
+                <SelectItem value="rating_4">⭐⭐⭐⭐ 4 – Sehr gut</SelectItem>
+                <SelectItem value="rating_5">⭐⭐⭐⭐⭐ 5 – Absolut empfehlenswert</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-2">
             <Label htmlFor="bereits_besucht">Bereits besucht</Label>
@@ -643,28 +666,12 @@ export function OrteDialog({ open, onClose, onSubmit, defaultValues, kategorienL
           </div>
           <div className="space-y-2">
             <Label htmlFor="besuchsdatum">Besuchsdatum</Label>
-            <div className="flex gap-2">
-              <Input
-                id="besuchsdatum"
-                type="date"
-                value={fields.besuchsdatum ?? ''}
-                onChange={e => setFields(f => ({ ...f, besuchsdatum: e.target.value }))}
-                className="flex-1"
-              />
-              {fields.besuchsdatum && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setFields(f => ({ ...f, besuchsdatum: undefined }))}
-                  className="shrink-0 px-2.5"
-                  title="Datum löschen"
-                >
-                  <IconX size={15} className="shrink-0" />
-                  <span className="ml-1 text-xs">Zurücksetzen</span>
-                </Button>
-              )}
-            </div>
+            <Input
+              id="besuchsdatum"
+              type="date"
+              value={fields.besuchsdatum ?? ''}
+              onChange={e => setFields(f => ({ ...f, besuchsdatum: e.target.value }))}
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="notizen_nach_besuch">Persönliche Notizen nach dem Besuch</Label>

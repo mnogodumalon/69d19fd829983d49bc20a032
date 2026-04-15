@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, type ReactElement } from 'react';
-import { IconSparkles, IconX, IconSend, IconPaperclip, IconLoader2, IconCopy, IconCheck, IconFileTypePdf } from '@tabler/icons-react';
+import { IconSparkles, IconX, IconSend, IconPaperclip, IconLoader2, IconCopy, IconCheck, IconFileTypePdf, IconFileSpreadsheet, IconMaximize, IconMinimize } from '@tabler/icons-react';
 import { fileToDataUri } from '@/lib/ai';
 import { useActions } from '@/context/ActionsContext';
 
@@ -326,11 +326,25 @@ function ChatMarkdown({ content }: { content: string }) {
 // ChatWidget component
 // ---------------------------------------------------------------------------
 
+// File type display config — add new non-image types here
+const FILE_TYPES: Record<string, { Icon: typeof IconFileTypePdf; label: string; color: string }> = {
+  'application/pdf': { Icon: IconFileTypePdf, label: 'PDF', color: 'text-red-500' },
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': { Icon: IconFileSpreadsheet, label: 'Excel', color: 'text-green-600' },
+};
+
+function getFileTypeInfo(dataUri: string) {
+  for (const [mime, info] of Object.entries(FILE_TYPES)) {
+    if (dataUri.startsWith(`data:${mime}`)) return info;
+  }
+  return null;
+}
+
 export default function ChatWidget() {
   const { chatOpen, setChatOpen, messages, chatLoading, sendMessage } = useActions();
   const [input, setInput] = useState('');
   const [image, setImage] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -343,8 +357,10 @@ export default function ChatWidget() {
 
   useEffect(() => {
     if (chatOpen && inputRef.current) {
-      inputRef.current.focus();
+      // Delay focus to avoid iOS zoom glitch on panel open
+      setTimeout(() => inputRef.current?.focus(), 300);
     }
+    if (!chatOpen) setIsFullscreen(false);
   }, [chatOpen]);
 
   const handleSend = useCallback(() => {
@@ -356,6 +372,8 @@ export default function ChatWidget() {
     setInput('');
     setImage(null);
     setFileName(null);
+    // Dismiss keyboard on mobile after send
+    inputRef.current?.blur();
   }, [input, image, sendMessage]);
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -398,23 +416,34 @@ export default function ChatWidget() {
 
       {/* Chat panel */}
       {chatOpen && (
-        <div className="fixed z-50 left-0 right-0 bottom-0 top-[45%] sm:inset-auto sm:bottom-20 sm:right-5 sm:w-[480px] sm:h-[640px] bg-card sm:border sm:border-border sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden sm:left-auto sm:top-auto rounded-t-2xl sm:rounded-b-2xl">
-          {/* Header — compact on mobile, drag handle + inline close */}
-          <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-card">
-            <div className="flex items-center gap-2">
-              <div className="hidden sm:flex w-7 h-7 rounded-lg bg-primary/10 items-center justify-center">
-                <IconSparkles size={14} className="text-primary" />
+        <div className={`fixed z-50 bg-card shadow-2xl flex flex-col overflow-hidden transition-all duration-200 ${
+          isFullscreen
+            ? 'inset-0 rounded-none'
+            : 'left-0 right-0 bottom-0 top-[40%] rounded-t-2xl sm:inset-auto sm:bottom-20 sm:right-5 sm:left-auto sm:top-auto sm:w-[480px] sm:h-[640px] sm:border sm:border-border sm:rounded-2xl'
+        }`}>
+          {/* Header */}
+          <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-card shrink-0">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-6 h-6 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                <IconSparkles size={12} className="text-primary" />
               </div>
-              {/* Mobile drag handle */}
-              <div className="sm:hidden w-8 h-1 rounded-full bg-muted-foreground/30 mx-auto" />
-              <span className="text-sm font-semibold text-foreground">Assistent</span>
+              <span className="text-sm font-semibold text-foreground truncate">Assistent</span>
             </div>
-            <button
-              onClick={() => setChatOpen(false)}
-              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-            >
-              <IconX size={16} />
-            </button>
+            <div className="flex items-center gap-0.5 shrink-0">
+              <button
+                onClick={() => setIsFullscreen(!isFullscreen)}
+                className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                title={isFullscreen ? 'Verkleinern' : 'Vollbild'}
+              >
+                {isFullscreen ? <IconMinimize size={14} /> : <IconMaximize size={14} />}
+              </button>
+              <button
+                onClick={() => setChatOpen(false)}
+                className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              >
+                <IconX size={14} />
+              </button>
+            </div>
           </div>
 
           {/* Messages */}
@@ -433,16 +462,17 @@ export default function ChatWidget() {
                     ? 'bg-primary text-primary-foreground rounded-br-md'
                     : 'bg-muted text-foreground rounded-bl-md'
                 }`}>
-                  {m.image && (
-                    m.image.startsWith('data:application/pdf') ? (
+                  {m.image && (() => {
+                    const ft = getFileTypeInfo(m.image);
+                    return ft ? (
                       <div className="flex items-center gap-2 mb-2 px-2 py-1.5 rounded-lg bg-black/10">
-                        <IconFileTypePdf size={20} />
-                        <span className="text-xs font-medium">PDF</span>
+                        <ft.Icon size={20} />
+                        <span className="text-xs font-medium">{ft.label}</span>
                       </div>
                     ) : (
                       <img src={m.image} alt="" className="max-w-full max-h-32 rounded-lg mb-2" />
-                    )
-                  )}
+                    );
+                  })()}
                   {m.content === 'In Arbeit...' ? (
                     <span className="flex items-center gap-2 text-muted-foreground">
                       <IconLoader2 size={14} className="animate-spin" />
@@ -472,14 +502,17 @@ export default function ChatWidget() {
           {image && (
             <div className="px-4 py-2">
               <div className="relative inline-block">
-                {image.startsWith('data:application/pdf') ? (
-                  <div className="h-16 px-4 rounded-lg border border-border bg-muted flex items-center gap-2">
-                    <IconFileTypePdf size={24} className="text-red-500 shrink-0" />
-                    <span className="text-xs font-medium truncate max-w-[200px]">{fileName || 'PDF'}</span>
-                  </div>
-                ) : (
-                  <img src={image} alt="" className="h-16 rounded-lg border border-border" />
-                )}
+                {(() => {
+                  const ft = getFileTypeInfo(image);
+                  return ft ? (
+                    <div className="h-16 px-4 rounded-lg border border-border bg-muted flex items-center gap-2">
+                      <ft.Icon size={24} className={`${ft.color} shrink-0`} />
+                      <span className="text-xs font-medium truncate max-w-[200px]">{fileName || ft.label}</span>
+                    </div>
+                  ) : (
+                    <img src={image} alt="" className="h-16 rounded-lg border border-border" />
+                  );
+                })()}
                 <button
                   onClick={() => { setImage(null); setFileName(null); }}
                   className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-destructive text-white flex items-center justify-center"
@@ -503,7 +536,7 @@ export default function ChatWidget() {
               <input
                 ref={fileRef}
                 type="file"
-                accept="image/*,.pdf,application/pdf"
+                accept="image/*,.pdf,application/pdf,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 onChange={handleFile}
                 className="hidden"
               />
@@ -515,7 +548,7 @@ export default function ChatWidget() {
                 placeholder="Frage stellen oder Bild hochladen..."
                 rows={1}
                 style={{ fieldSizing: 'content', maxHeight: '4.5rem' } as React.CSSProperties}
-                className="flex-1 resize-none bg-muted rounded-xl px-3 py-2 text-sm outline-none border-0 placeholder:text-muted-foreground/60 overflow-y-auto"
+                className="flex-1 resize-none bg-muted rounded-xl px-3 py-2 text-base sm:text-sm outline-none border-0 placeholder:text-muted-foreground/60 overflow-y-auto"
               />
               <button
                 onClick={handleSend}

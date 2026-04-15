@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { IconArrowsDownUp, IconFlask } from '@tabler/icons-react';
+import { IconArrowsDownUp, IconFlask, IconPlus } from '@tabler/icons-react';
 import { getHeaderProfile, getAppGroups } from '@/services/livingAppsService';
 import type { HeaderProfile, AppGroupInfo } from '@/services/livingAppsService';
 import { useActions } from '@/context/ActionsContext';
@@ -196,6 +196,18 @@ export function TopBar() {
                     <span lang="de" className="text-xs text-[#767676] text-center w-full line-clamp-2 leading-tight" style={{hyphens: 'auto'}}>{g.name}</span>
                   </a>
                 ))}
+                {/* Create New App */}
+                <a
+                  href="/ki-2-la.htm"
+                  className="col-span-4 grid grid-cols-4 gap-x-1 items-center mt-2 rounded-lg hover:bg-accent/50 transition-colors"
+                >
+                  <div className="flex flex-col items-center p-1">
+                    <div className="w-[54px] h-[54px] rounded-[13px] bg-[#d14600]/10 flex items-center justify-center">
+                      <IconPlus size={24} className="text-[#d14600]" />
+                    </div>
+                  </div>
+                  <span className="col-span-3 text-base text-[#374151]">Neue App erstellen</span>
+                </a>
               </div>
             ) : (
               <div className="flex items-center justify-center py-8 text-sm text-[#767676]">

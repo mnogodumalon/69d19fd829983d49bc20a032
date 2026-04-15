@@ -76,7 +76,17 @@ The CRUD pages provide basic list-based CRUD as a fallback. **Your job is to bui
 - **useDashboardData.ts, enriched.ts, enrich.ts, formatters.ts, ai.ts, chat-context.ts, ChatWidget.tsx** — NEVER touch. Use as-is.
 - **`src/config/ai-features.ts`** — You MAY edit this file. Set `AI_PHOTO_SCAN['EntityName']` to `true` to enable the "Foto scannen" button in that entity's dialog. The button lets users photograph a document/receipt/card and auto-fill form fields via AI.
 - **CRUD pages and dialogs** — NEVER touch. Complete with all logic.
-- **App.tsx** — NEVER touch. Routes are pre-configured.
+- **App.tsx** — Routes are pre-configured. You MAY add custom imports/routes **only inside the `<custom:imports>` and `<custom:routes>` marker blocks** — content between markers is preserved across scaffold updates, everything else is overwritten. Example:
+  ```tsx
+  // <custom:imports>
+  import MyCustomPage from '@/pages/MyCustomPage';
+  // </custom:imports>
+  ...
+  {/* <custom:routes> */}
+  <Route path="custom" element={<MyCustomPage />} />
+  {/* </custom:routes> */}
+  ```
+  Never edit outside the markers — changes will be lost on the next scaffold update.
 - **PageShell.tsx, StatCard.tsx, ConfirmDialog.tsx** — NEVER touch.
 - **AdminPage.tsx, BulkEditDialog.tsx** — NEVER touch. Pre-generated admin panel with filters, multi-select, and bulk actions.
 
